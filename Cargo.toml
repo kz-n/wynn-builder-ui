@@ -1,0 +1,9 @@
+[package]
+name = "wynn-builder-ui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = "0.10.0"
+toml = "0.8.10"
+serde = { version = "1.0.197", features = ["derive"] }
