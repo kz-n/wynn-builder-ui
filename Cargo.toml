@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = "0.10.0"
+iced = { version = "0.13.1", features = ["advanced"] }
+iced_widget = "0.13.1"
+iced_aw = { version = "0.11.0" }
 toml = "0.8.10"
 serde = { version = "1.0.197", features = ["derive"] }
+casey = "0.4.0"

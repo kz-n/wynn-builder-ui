@@ -1,3 +1,13 @@
 /target
+/config
+/db
+/migrations
+/assets
+/.vscode
 Cargo.lock
 **/*.rs.bk
+**/builder
+**/search_item
+**/*.toml
+**/*.txt
+**/*.json
