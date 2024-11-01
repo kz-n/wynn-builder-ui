@@ -3,6 +3,7 @@ use std::path::Path;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, checkbox, column, container, pick_list, row, text, text_input};
 use iced::{Element, Length, Renderer, Task, Theme};
+use iced_widget::text_editor::Action;
 use iced_widget::{text_editor, Container};
 use serde::{Deserialize, Serialize};
 
@@ -22,9 +23,10 @@ enum Message {
     ThemeChanged(Theme),
     SearchInputChanged(String),
     SearchInputSubmitted,
-    SearchItemEditorAction(text_editor::Action),
+    SearchItemEditorAction(Action),
     SearchItemStdout(String),
     Ignore, // For readonly text input
+    ConfigFileEditorAction(Action),
 }
 
 #[derive(Default)]
@@ -33,6 +35,7 @@ struct Tabs {
     theme: Theme,
     search_input: String,
     search_results: text_editor::Content,
+    config_file_content: text_editor::Content,
 }
 mod theme_serde;
 
@@ -57,12 +60,18 @@ impl Tabs {
             Err(_) => Theme::Dark,
         };
 
+        let config_file_content = match std::fs::read_to_string("config/config.toml") {
+            Ok(content) => content,
+            Err(_) => String::from("# Config file not found.\n# A new one will be created when you save."),
+        };
+
         (
             Self {
                 active_tab: Tab::Intro,
                 theme,
                 search_input: String::new(),
                 search_results: text_editor::Content::new(),
+                config_file_content: text_editor::Content::with_text(&config_file_content),
             },
             Task::none(),
         )
@@ -89,26 +98,24 @@ impl Tabs {
                 self.search_input = input_text;
             }
             Message::SearchInputSubmitted => {
-                let binary_name = if cfg!(windows) { "search_item.exe" } else { "search_item" };
-                
+                let binary_name = if cfg!(windows) {
+                    "search_item.exe"
+                } else {
+                    "search_item"
+                };
+
                 // Split input into arguments, preserving quoted strings if present
-                let args: Vec<&str> = self.search_input
-                    .split_whitespace()
-                    .collect();
-                
-                let output = match std::process::Command::new(binary_name)
-                    .args(args)
-                    .output() {
-                        Ok(output) => {
-                            if output.status.success() {
-                                String::from_utf8_lossy(&output.stdout).to_string()
-                            } else {
-                                // If the command failed, show stderr instead
-                                String::from_utf8_lossy(&output.stderr).to_string()
-                            }
-                        },
-                        Err(e) => format!("Error: Could not execute search_item binary: {}", e),
-                    };
+                let args: Vec<&str> = self.search_input.split_whitespace().collect();
+
+                let output = match std::process::Command::new(binary_name).args(args).output() {
+                    Ok(output) => {
+                        match output.status.success() {
+                            true => String::from_utf8_lossy(&output.stdout).to_string(),
+                            false => String::from_utf8_lossy(&output.stderr).to_string(),
+                        }
+                    }
+                    Err(e) => format!("Error: Could not execute search_item binary: {}", e),
+                };
 
                 self.search_results = text_editor::Content::with_text(&output);
             }
@@ -118,29 +125,73 @@ impl Tabs {
             }
             Message::SearchItemEditorAction(action) => {
                 match action {
-                    text_editor::Action::Edit(_) => (), // Do nothing for edits
-                    text_editor::Action::Move(_) => (), // Do nothing for moves
-                    text_editor::Action::Select(motion) => {
-                        self.search_results.perform(text_editor::Action::Select(motion));
+                    Action::Edit(_) => (), // Do nothing for edits
+                    Action::Move(_) => (), // Do nothing for moves
+                    Action::Select(motion) => {
+                        self.search_results
+                            .perform(Action::Select(motion));
+                    }
+                    Action::SelectWord => {
+                        self.search_results.perform(Action::SelectWord);
+                    }
+                    Action::SelectLine => {
+                        self.search_results.perform(Action::SelectLine);
+                    }
+                    Action::SelectAll => {
+                        self.search_results.perform(Action::SelectAll);
+                    }
+                    Action::Click(point) => {
+                        self.search_results
+                            .perform(Action::Click(point));
+                    }
+                    Action::Drag(point) => {
+                        self.search_results
+                            .perform(Action::Drag(point));
+                    }
+                    Action::Scroll { lines } => {
+                        self.search_results
+                            .perform(Action::Scroll { lines });
+                    }
+                }
+            }
+            Message::ConfigFileEditorAction(action) => {
+                match action {
+                    Action::Edit(edit) => {
+                        self.config_file_content.perform(Action::Edit(edit));
+                        // Write the updated content to file
+                        if let Ok(_) = std::fs::write("config/config.toml", self.config_file_content.text()) {
+                            // Successfully saved
+                        }
                     },
-                    text_editor::Action::SelectWord => {
-                        self.search_results.perform(text_editor::Action::SelectWord);
+                    Action::Move(movement) => {
+                        // Enable cursor movement
+                        self.config_file_content.perform(Action::Move(movement));
                     },
-                    text_editor::Action::SelectLine => {
-                        self.search_results.perform(text_editor::Action::SelectLine);
-                    },
-                    text_editor::Action::SelectAll => {
-                        self.search_results.perform(text_editor::Action::SelectAll);
-                    },
-                    text_editor::Action::Click(point) => {
-                        self.search_results.perform(text_editor::Action::Click(point));
-                    },
-                    text_editor::Action::Drag(point) => {
-                        self.search_results.perform(text_editor::Action::Drag(point));
-                    },
-                    text_editor::Action::Scroll { lines } => {
-                        self.search_results.perform(text_editor::Action::Scroll { lines });
-                    },
+                    Action::Select(motion) => {
+                        self.search_results
+                            .perform(Action::Select(motion));
+                    }
+                    Action::SelectWord => {
+                        self.search_results.perform(Action::SelectWord);
+                    }
+                    Action::SelectLine => {
+                        self.search_results.perform(Action::SelectLine);
+                    }
+                    Action::SelectAll => {
+                        self.search_results.perform(Action::SelectAll);
+                    }
+                    Action::Click(point) => {
+                        self.search_results
+                            .perform(Action::Click(point));
+                    }
+                    Action::Drag(point) => {
+                        self.search_results
+                            .perform(Action::Drag(point));
+                    }
+                    Action::Scroll { lines } => {
+                        self.search_results
+                            .perform(Action::Scroll { lines });
+                    }
                 }
             }
         }
@@ -274,7 +325,27 @@ impl Tabs {
                     .height(Length::Fill)
                     .into()
             }
-            Tab::ConfigFile => container(column![text("Content for Config File Tab")]).into(),
+            Tab::ConfigFile => {
+                let column = column![
+                    text("Edit Configuration File")
+                        .size(30),
+                    text("The configuration will be saved automatically when you edit.")
+                        .size(20),
+                    text_editor(
+                        &self.config_file_content
+                    )
+                    .on_action(Message::ConfigFileEditorAction)
+                ]
+                .spacing(20)
+                .align_x(Horizontal::Center);
+
+                container(column)
+                    .align_x(Horizontal::Center)
+                    .align_y(Vertical::Top)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            },
             Tab::Builder => container(column![text("Content for Builder Tab")]).into(),
         };
 
