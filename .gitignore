@@ -4,6 +4,7 @@
 /migrations
 /assets
 /.vscode
+/settings
 Cargo.lock
 **/*.rs.bk
 **/builder
