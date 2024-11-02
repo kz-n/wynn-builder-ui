@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use build_config::Config;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, checkbox, column, container, pick_list, row, text, text_input};
 use iced::{Element, Length, Renderer, Task, Theme};
@@ -7,6 +8,7 @@ use iced_widget::text_editor::Action;
 use iced_widget::{combo_box, text_editor, Container};
 use serde::{Deserialize, Serialize};
 
+mod build_config;
 mod theme_serde;
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -26,16 +28,21 @@ enum Message {
     SearchInputChanged(String),
     SearchInputSubmitted,
     SearchItemEditorAction(Action),
-    SearchItemStdout(String),
-    Ignore, // For readonly text input
-    HelmetSelected(String),
-    ChestplateSelected(String),
-    LeggingsSelected(String),
-    BootsSelected(String),
-    RingsSelected(String),
-    BraceletsSelected(String),
-    NecklacesSelected(String),
-    WeaponsSelected(String),
+    HelmetSelected(usize, String),
+    AddHelmet,
+    ChestplateSelected(usize, String),
+    AddChestplate,
+    LeggingsSelected(usize, String),
+    AddLeggings,
+    BootsSelected(usize, String),
+    AddBoots,
+    RingsSelected(usize, String),
+    AddRings,
+    BraceletsSelected(usize, String),
+    AddBracelets,
+    NecklacesSelected(usize, String),
+    AddNecklaces,
+    WeaponSelected(String),
 }
 
 #[derive(Default)]
@@ -54,33 +61,44 @@ struct SearchItemsTab {
 
 #[derive(Default)]
 struct ConfigFileTab {
+    error_message: Option<String>,
     helmets: combo_box::State<String>,
-    selected_helmet: Option<String>,
+    helmet_selections: Vec<Option<String>>,
     chestplates: combo_box::State<String>,
-    selected_chestplate: Option<String>,
+    chestplate_selections: Vec<Option<String>>,
     leggings: combo_box::State<String>,
-    selected_leggings: Option<String>,
+    leggings_selections: Vec<Option<String>>,
     boots: combo_box::State<String>,
-    selected_boots: Option<String>,
+    boots_selections: Vec<Option<String>>,
     rings: combo_box::State<String>,
-    selected_rings: Option<String>,
+    rings_selections: Vec<Option<String>>,
     bracelets: combo_box::State<String>,
-    selected_bracelets: Option<String>,
+    bracelets_selections: Vec<Option<String>>,
     necklaces: combo_box::State<String>,
-    selected_necklaces: Option<String>,
+    necklaces_selections: Vec<Option<String>>,
     weapons: combo_box::State<String>,
     selected_weapon: Option<String>,
+    config: Config,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GearList {
+pub struct GearList {
     items: Vec<Gear>,
 }
 
 impl GearList {
-    fn from_json(path: &str) -> Self {
-        let items_json_string = std::fs::read_to_string(path).unwrap();
-        serde_json::from_str(&items_json_string).unwrap()
+    fn from_json(path: &str) -> Result<Self, String> {
+        let items_json_string = std::fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read items file: {}", e))?;
+
+        match serde_json::from_str::<GearList>(&items_json_string) {
+            Ok(gear_list) => Ok(gear_list),
+            Err(e) => {
+                // Print more detailed error information
+                eprintln!("Deserialization error: {}", e);
+                Err(format!("Failed to parse items JSON: {}", e))
+            }
+        }
     }
 
     fn get_gear_by_type(&self, gear_type: GearType) -> Vec<String> {
@@ -130,15 +148,27 @@ impl GearList {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 struct Gear {
     id: i64,
     name: String,
+    tier: String,
     #[serde(rename = "type")]
     gear_type: GearType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+impl Gear {
+    fn default_for_type(gear_type: GearType, name: &str, id: i64) -> Self {
+        Self {
+            id,
+            name: name.to_string(), // Convert &str to owned String
+            tier: String::from("Common"), // Default tier
+            gear_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 enum GearType {
     Helmet,
@@ -148,11 +178,13 @@ enum GearType {
     Ring,
     Bracelet,
     Necklace,
+    Bow,
     Spear,
     Wand,
-    Bow,
     Dagger,
     Relik,
+    #[default]
+    None,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,11 +195,25 @@ struct ThemeConfig {
 
 impl Tabs {
     fn new() -> (Self, Task<Message>) {
-        // Create settings directory if it doesn't exist
+        // === Directory Setup ===
         let settings_dir = Path::new("settings");
         let _ = std::fs::create_dir_all(settings_dir);
         let theme_path = settings_dir.join("theme.toml");
 
+        // === Load Config File ===
+        let config = build_config::load_config("config/config.toml").unwrap_or_default();
+
+        // Parse config items into vectors
+        let helmets = config.items.helmets.iter().map(|s| s.to_string()).collect();
+        let chestplates = config.items.chest_plates.iter().map(|s| s.to_string()).collect();
+        let leggings = config.items.leggings.iter().map(|s| s.to_string()).collect();
+        let boots = config.items.boots.iter().map(|s| s.to_string()).collect();
+        let rings = config.items.rings.iter().map(|s| s.to_string()).collect();
+        let bracelets = config.items.bracelets.iter().map(|s| s.to_string()).collect();
+        let necklaces = config.items.necklaces.iter().map(|s| s.to_string()).collect();
+        let weapon = config.items.weapon.to_string();
+
+        // === Theme Setup ===
         let theme = match std::fs::read_to_string(&theme_path) {
             Ok(contents) => match toml::from_str::<ThemeConfig>(&contents) {
                 Ok(config) => config.theme,
@@ -176,23 +222,59 @@ impl Tabs {
             Err(_) => Theme::Dark,
         };
 
-        let gear_list = GearList::from_json("config/items.json");
+        // === Load Gear List ===
+        let (gear_list, error_message) = match GearList::from_json("config/items.json") {
+            Ok(list) => (list, "ok".to_owned()),
+            Err(e) => (
+                GearList {
+                    items: vec![
+                        // Default gear items when loading fails
+                        Gear::default_for_type(GearType::Helmet, "No helmets found", -1),
+                        Gear::default_for_type(GearType::Chestplate, "No chestplates found", -2),
+                        Gear::default_for_type(GearType::Leggings, "No leggings found", -3),
+                        Gear::default_for_type(GearType::Boots, "No boots found", -4),
+                        Gear::default_for_type(GearType::Ring, "No rings found", -5),
+                        Gear::default_for_type(GearType::Bracelet, "No bracelets found", -6),
+                        Gear::default_for_type(GearType::Necklace, "No necklaces found", -7),
+                        Gear::default_for_type(GearType::Spear, "No weapons found", -8),
+                    ],
+                },
+                format!("Error loading items.json: {}", e)
+            ),
+        };
 
+        let selected_weapon = if weapon.is_empty() { None } else { Some(weapon) };
+        
+        // === Return Initialized State ===
         (
             Self {
                 active_tab: Tab::Intro,
                 theme,
+                // Config File Tab initialization
                 config_file_tab: ConfigFileTab {
+                    // Gear selection states
                     helmets: combo_box::State::new(gear_list.helmets()),
+                    helmet_selections: gear_to_some(helmets),
                     chestplates: combo_box::State::new(gear_list.chestplates()),
+                    chestplate_selections: gear_to_some(chestplates),
                     leggings: combo_box::State::new(gear_list.leggings()),
+                    leggings_selections: gear_to_some(leggings),
                     boots: combo_box::State::new(gear_list.boots()),
+                    boots_selections: gear_to_some(boots),
                     rings: combo_box::State::new(gear_list.rings()),
+                    rings_selections: gear_to_some(rings),
                     bracelets: combo_box::State::new(gear_list.bracelets()),
+                    bracelets_selections: gear_to_some(bracelets),
                     necklaces: combo_box::State::new(gear_list.necklaces()),
+                    necklaces_selections: gear_to_some(necklaces),
                     weapons: combo_box::State::new(gear_list.weapons()),
+                    selected_weapon,
+                    // Error handling
+                    error_message: if error_message != "ok" { Some(error_message) } else { None },
+                    config,
                     ..Default::default()
                 },
+                // Search Tab initialization
                 search_items_tab: SearchItemsTab::default(),
             },
             Task::none(),
@@ -243,10 +325,6 @@ impl Tabs {
 
                 self.search_items_tab.search_results = text_editor::Content::with_text(&output);
             }
-            Message::Ignore => (),
-            Message::SearchItemStdout(output) => {
-                self.search_items_tab.search_results = text_editor::Content::with_text(&output);
-            }
             Message::SearchItemEditorAction(action) => {
                 match action {
                     Action::Edit(_) => (), // Do nothing for edits
@@ -288,29 +366,71 @@ impl Tabs {
                     }
                 }
             }
-            Message::HelmetSelected(name) => {
-                self.config_file_tab.selected_helmet = Some(name);
+            Message::HelmetSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.helmet_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.helmets.push(name);
             }
-            Message::ChestplateSelected(name) => {
-                self.config_file_tab.selected_chestplate = Some(name);
+            Message::AddHelmet => {
+                self.config_file_tab.helmet_selections.push(None);
             }
-            Message::LeggingsSelected(name) => {
-                self.config_file_tab.selected_leggings = Some(name);
+            Message::ChestplateSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.chestplate_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.chest_plates.push(name);
             }
-            Message::BootsSelected(name) => {
-                self.config_file_tab.selected_boots = Some(name);
+            Message::AddChestplate => {
+                self.config_file_tab.chestplate_selections.push(None);
             }
-            Message::RingsSelected(name) => {
-                self.config_file_tab.selected_rings = Some(name);
+            Message::LeggingsSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.leggings_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.leggings.push(name);
             }
-            Message::BraceletsSelected(name) => {
-                self.config_file_tab.selected_bracelets = Some(name);
+            Message::BootsSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.boots_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.boots.push(name);
             }
-            Message::NecklacesSelected(name) => {
-                self.config_file_tab.selected_necklaces = Some(name);
+            Message::RingsSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.rings_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.rings.push(name);
             }
-            Message::WeaponsSelected(name) => {
+            Message::BraceletsSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.bracelets_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.bracelets.push(name);
+            }
+            Message::NecklacesSelected(idx, name) => {
+                if let Some(selection) = self.config_file_tab.necklaces_selections.get_mut(idx) {
+                    *selection = Some(name.clone());
+                }
+                self.config_file_tab.config.items.necklaces.push(name);
+            }
+            Message::WeaponSelected(name) => {
                 self.config_file_tab.selected_weapon = Some(name);
+            }
+            Message::AddLeggings => {
+                self.config_file_tab.leggings_selections.push(None);
+            }
+            Message::AddBoots => {
+                self.config_file_tab.boots_selections.push(None);
+            }
+            Message::AddRings => {
+                self.config_file_tab.rings_selections.push(None);
+            }
+            Message::AddBracelets => {
+                self.config_file_tab.bracelets_selections.push(None);
+            }
+            Message::AddNecklaces => {
+                self.config_file_tab.necklaces_selections.push(None);
             }
         }
     }
@@ -353,6 +473,12 @@ impl Tabs {
                             is_config_file_found(),
                         ).spacing(10),
                     ],
+                    row![
+                        checkbox(
+                            "Items.json file found",
+                            is_items_json_found(),
+                        ).spacing(10),
+                    ]
                 ]
                 .spacing(20)
                 .align_x(Horizontal::Center);
@@ -447,54 +573,143 @@ impl Tabs {
                 let column = column![
                     text("Edit Configuration File").size(30),
                     text("The configuration will be saved automatically when you edit.").size(20),
-                    combo_box(
-                        &self.config_file_tab.helmets,
-                        "Select a helmet...",
-                        self.config_file_tab.selected_helmet.as_ref(),
-                        Message::HelmetSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.chestplates,
-                        "Select a chestplate...",
-                        self.config_file_tab.selected_chestplate.as_ref(),
-                        Message::ChestplateSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.leggings,
-                        "Select a leggings...",
-                        self.config_file_tab.selected_leggings.as_ref(),
-                        Message::LeggingsSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.boots,
-                        "Select a boots...",
-                        self.config_file_tab.selected_boots.as_ref(),
-                        Message::BootsSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.rings,
-                        "Select a ring...",
-                        self.config_file_tab.selected_rings.as_ref(),
-                        Message::RingsSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.bracelets,
-                        "Select a bracelet...",
-                        self.config_file_tab.selected_bracelets.as_ref(),
-                        Message::BraceletsSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.necklaces,
-                        "Select a necklace...",
-                        self.config_file_tab.selected_necklaces.as_ref(),
-                        Message::NecklacesSelected
-                    ),
-                    combo_box(
-                        &self.config_file_tab.weapons,
-                        "Select a weapon...",
-                        self.config_file_tab.selected_weapon.as_ref(),
-                        Message::WeaponsSelected
-                    ),
+                    text("If the items say \"No items found\", check that items.json is present in the config folder, and close and re-open the application.").size(20),
+                    // Error if no items.json file is found
+                    if let Some(error_message) = &self.config_file_tab.error_message {
+                        text(error_message).size(20).color(iced::color!(255, 0, 0))
+                    } else {
+                        text("").size(20)
+                    },
+                    // Create multiple helmet combo boxes
+                    column![
+                        text("Helmets:"),
+                        self.config_file_tab
+                            .helmet_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.helmets,
+                                    "Select helmet...",
+                                    selection.as_ref(),
+                                    move |name| Message::HelmetSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Helmet").on_press(Message::AddHelmet)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Chestplates:"),
+                        self.config_file_tab
+                            .chestplate_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.chestplates,
+                                    "Select chestplate...",
+                                    selection.as_ref(),
+                                    move |name| Message::ChestplateSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Chestplate").on_press(Message::AddChestplate)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Leggings:"),
+                        self.config_file_tab
+                            .leggings_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.leggings,
+                                    "Select leggings...",
+                                    selection.as_ref(),
+                                    move |name| Message::LeggingsSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Leggings").on_press(Message::AddLeggings)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Boots:"),
+                        self.config_file_tab
+                            .boots_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.boots,
+                                    "Select boots...",
+                                    selection.as_ref(),
+                                    move |name| Message::BootsSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Boots").on_press(Message::AddBoots)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Rings:"),
+                        self.config_file_tab
+                            .rings_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.rings,
+                                    "Select ring...",
+                                    selection.as_ref(),
+                                    move |name| Message::RingsSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Ring").on_press(Message::AddRings)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Bracelets:"),
+                        self.config_file_tab
+                            .bracelets_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.bracelets,
+                                    "Select bracelet...",
+                                    selection.as_ref(),
+                                    move |name| Message::BraceletsSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Bracelet").on_press(Message::AddBracelets)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Necklaces:"),
+                        self.config_file_tab
+                            .necklaces_selections
+                            .iter()
+                            .enumerate()
+                            .fold(column![].spacing(5), |col, (idx, selection)| {
+                                col.push(combo_box(
+                                    &self.config_file_tab.necklaces,
+                                    "Select necklace...",
+                                    selection.as_ref(),
+                                    move |name| Message::NecklacesSelected(idx, name),
+                                ))
+                            }),
+                        button("Add Necklace").on_press(Message::AddNecklaces)
+                    ]
+                    .spacing(10),
+                    column![
+                        text("Weapon:"),
+                        combo_box(
+                            &self.config_file_tab.weapons,
+                            "Select weapon...",
+                            self.config_file_tab.selected_weapon.as_ref(),
+                            Message::WeaponSelected,
+                        ),
+                    ]
+                    .spacing(10),
                 ]
                 .spacing(20)
                 .align_x(Horizontal::Center);
@@ -528,6 +743,14 @@ fn main() -> iced::Result {
         .run_with(Tabs::new)
 }
 
+fn gear_to_some(gear_list: Vec<String>) -> Vec<Option<String>> {
+    let mut selections = vec![None; gear_list.len()];
+    for (i, helmet) in gear_list.iter().enumerate() {
+        selections[i] = Some(helmet.clone());
+    }
+    selections
+}
+
 fn is_builder_binary_found() -> bool {
     use std::path::Path;
     let builder_names = ["builder", "builder.exe"];
@@ -544,4 +767,8 @@ fn is_config_file_found() -> bool {
     config_names
         .iter()
         .any(|name| Path::new("config").join(name).exists())
+}
+
+fn is_items_json_found() -> bool {
+    Path::new("config/items.json").exists()
 }
