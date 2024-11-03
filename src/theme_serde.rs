@@ -7,7 +7,7 @@ where
 {
     let theme_str = match theme {
         Theme::Light => "light",
-        Theme::Dark => "dark", 
+        Theme::Dark => "dark",
         Theme::Dracula => "dracula",
         Theme::Nord => "nord",
         Theme::SolarizedLight => "solarized_light",
@@ -28,7 +28,7 @@ where
         Theme::Nightfly => "nightfly",
         Theme::Oxocarbon => "oxocarbon",
         Theme::Ferra => "ferra",
-        Theme::Custom(_) => "custom",  // Custom themes serialize to "custom" string
+        Theme::Custom(_) => "custom", // Custom themes serialize to "custom" string
     };
     serializer.serialize_str(theme_str)
 }

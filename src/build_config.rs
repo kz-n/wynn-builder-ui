@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::Read, path::Path, str};
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct Config {
     pub items: Items,
     pub player: Player,
@@ -25,13 +25,13 @@ pub struct Items {
     pub weapon: String,
     pub illegal_combinations: Option<Vec<Vec<String>>>,
 }
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct Player {
     pub lvl: i32,
     pub available_point: i16,
     pub base_hp: i32,
 }
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct Hppeng {
     pub url_prefix: String,
     pub url_suffix: String,
@@ -42,18 +42,18 @@ pub struct Hppeng {
     pub log_db_errors: bool,
     pub db_retry_count: u8,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct Api {
     pub url: String,
     pub version: String,
     pub module: String,
     pub query: String,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ThresholdFirst {
     pub min_hp: Option<i32>,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ThresholdSecond {
     pub min_hpr_raw: Option<i16>,
     pub min_hpr_pct: Option<i16>,
@@ -67,7 +67,7 @@ pub struct ThresholdSecond {
 
     pub min_hpr: Option<i32>,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ThresholdThird {
     pub min_earth_defense: Option<i16>,
     pub min_thunder_defense: Option<i16>,
@@ -75,7 +75,7 @@ pub struct ThresholdThird {
     pub min_fire_defense: Option<i16>,
     pub min_air_defense: Option<i16>,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ThresholdFourth {
     pub min_neutral_dam_pct: Option<i16>,
     pub min_earth_dam_pct: Option<i16>,
@@ -84,7 +84,7 @@ pub struct ThresholdFourth {
     pub min_fire_dam_pct: Option<i16>,
     pub min_air_dam_pct: Option<i16>,
 }
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct ThresholdFifth {
     pub min_earth_point: Option<i16>,
     pub min_thunder_point: Option<i16>,
@@ -114,5 +114,12 @@ pub fn load_config(path: impl AsRef<Path>) -> Result<Config, String> {
     match toml::from_str(str::from_utf8(&buffer).unwrap()) {
         Ok(ok) => Ok(ok),
         Err(err) => Err(err.to_string()),
+    }
+}
+
+impl Config {
+    pub fn save_config(&self, path: impl AsRef<Path>) -> Result<(), String> {
+        let toml_string = toml::to_string(self).map_err(|e| e.to_string())?;
+        std::fs::write(path, toml_string).map_err(|e| e.to_string())
     }
 }
