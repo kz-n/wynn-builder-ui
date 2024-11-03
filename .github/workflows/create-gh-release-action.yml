@@ -51,6 +51,7 @@ jobs:
         run: |
           mkdir -pv artifacts
           mkdir -pv temp_package/
+          find ./target/${{ matrix.target }}/release -type f \( -name "wynn-builder-ui" -o -name "wynn-builder-ui.exe" \) -exec cp -v {} temp_package/ \; || echo "Wynn Builder UI binary not found"
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             pwsh -Command "
               \$artifactName = '${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.target }}.${{ matrix.archive }}'
