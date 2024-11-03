@@ -6,10 +6,12 @@ use iced::widget::{button, checkbox, column, container, pick_list, row, text, te
 use iced::{Element, Length, Renderer, Task, Theme};
 use iced_widget::text_editor::Action;
 use iced_widget::{combo_box, scrollable, text_editor, Container};
+use messages::*;
 use serde::{Deserialize, Serialize};
 
 mod build_config;
 mod theme_serde;
+mod messages;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 enum Tab {
@@ -19,61 +21,6 @@ enum Tab {
     ConfigFile,
     Builder,
     Theme,
-}
-
-#[derive(Debug, Clone)]
-enum Message {
-    TabSelected(Tab),
-    ThemeChanged(Theme),
-    SearchInputChanged(String),
-    SearchInputSubmitted,
-    SearchItemEditorAction(Action),
-    HelmetSelected(usize, String),
-    AddHelmet,
-    ChestplateSelected(usize, String),
-    AddChestplate,
-    LeggingsSelected(usize, String),
-    AddLeggings,
-    BootsSelected(usize, String),
-    AddBoots,
-    RingsSelected(usize, String),
-    AddRings,
-    BraceletsSelected(usize, String),
-    AddBracelets,
-    NecklacesSelected(usize, String),
-    AddNecklaces,
-    WeaponSelected(String),
-    PlayerLevelChanged(String),
-    PlayerAvailablePointChanged(String),
-    PlayerBaseHpChanged(String),
-    ThresholdFirstHpChanged(String),
-    ThresholdSecondHprRawChanged(String),
-    ThresholdSecondHprPctChanged(String),
-    ThresholdSecondMrChanged(String),
-    ThresholdSecondLsChanged(String),
-    ThresholdSecondMsChanged(String),
-    ThresholdSecondSpdChanged(String),
-    ThresholdSecondSdRawChanged(String),
-    ThresholdSecondSdPctChanged(String),
-    ThresholdSecondHprChanged(String),
-    ThresholdSecondExpBonusChanged(String),
-    ThresholdThirdEarthDefChanged(String),
-    ThresholdThirdThunderDefChanged(String),
-    ThresholdThirdWaterDefChanged(String),
-    ThresholdThirdFireDefChanged(String),
-    ThresholdThirdAirDefChanged(String),
-    ThresholdFourthNeutralDamPctChanged(String),
-    ThresholdFourthEarthDamPctChanged(String),
-    ThresholdFourthThunderDamPctChanged(String),
-    ThresholdFourthWaterDamPctChanged(String),
-    ThresholdFourthFireDamPctChanged(String),
-    ThresholdFourthAirDamPctChanged(String),
-    ThresholdFifthEarthPointChanged(String),
-    ThresholdFifthThunderPointChanged(String),
-    ThresholdFifthWaterPointChanged(String),
-    ThresholdFifthFirePointChanged(String),
-    ThresholdFifthAirPointChanged(String),
-    ThresholdFifthEhpChanged(String),
 }
 
 #[derive(Default)]
@@ -357,10 +304,9 @@ impl Tabs {
 
     fn update(&mut self, message: Message) {
         match message {
-            // Tab and Theme Management
             Message::TabSelected(tab) => {
                 self.active_tab = tab;
-            }
+            },
             Message::ThemeChanged(theme) => {
                 self.theme = theme.clone();
 
@@ -372,575 +318,489 @@ impl Tabs {
                 let theme_path = settings_dir.join("theme.toml");
                 let theme_toml = toml::to_string(&theme_config).unwrap();
                 let _ = std::fs::write(theme_path, theme_toml);
-            }
-
-            // Search Tab Actions
-            Message::SearchInputChanged(input_text) => {
-                self.search_items_tab.search_input = input_text;
-            }
-            Message::SearchInputSubmitted => {
-                let binary_name = if cfg!(windows) {
-                    "search_item.exe"
-                } else {
-                    "search_item"
-                };
-
-                // Split input into arguments, preserving quoted strings if present
-                let args: Vec<&str> = self
-                    .search_items_tab
-                    .search_input
-                    .split_whitespace()
-                    .collect();
-
-                let output = match std::process::Command::new(binary_name).args(args).output() {
-                    Ok(output) => match output.status.success() {
-                        true => String::from_utf8_lossy(&output.stdout).to_string(),
-                        false => String::from_utf8_lossy(&output.stderr).to_string(),
-                    },
-                    Err(e) => format!("Error: Could not execute search_item binary: {}", e),
-                };
-
-                self.search_items_tab.search_results = text_editor::Content::with_text(&output);
-            }
-            Message::SearchItemEditorAction(action) => {
-                match action {
-                    Action::Edit(_) => (), // Do nothing for edits
-                    Action::Move(_) => (), // Do nothing for moves
-                    Action::Select(motion) => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::Select(motion));
+            },
+            Message::Search(search_message) => {
+                match search_message {
+                    SearchMessage::InputChanged(input_text) => {
+                        self.search_items_tab.search_input = input_text;
                     }
-                    Action::SelectWord => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::SelectWord);
+                    SearchMessage::InputSubmitted => {
+                        let binary_name = if cfg!(windows) {
+                            "search_item.exe"
+                        } else {
+                            "search_item"
+                        };
+
+                        let args: Vec<&str> = self
+                            .search_items_tab
+                            .search_input
+                            .split_whitespace()
+                            .collect();
+
+                        let output = match std::process::Command::new(binary_name).args(args).output() {
+                            Ok(output) => match output.status.success() {
+                                true => String::from_utf8_lossy(&output.stdout).to_string(),
+                                false => String::from_utf8_lossy(&output.stderr).to_string(),
+                            },
+                            Err(e) => format!("Error: Could not execute search_item binary: {}", e),
+                        };
+
+                        self.search_items_tab.search_results = text_editor::Content::with_text(&output);
                     }
-                    Action::SelectLine => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::SelectLine);
+                    SearchMessage::ItemEditorAction(action) => {
+                        match action {
+                            Action::Edit(_) => (), 
+                            Action::Move(_) => (),
+                            Action::Select(motion) => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::Select(motion));
+                            }
+                            Action::SelectWord => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::SelectWord);
+                            }
+                            Action::SelectLine => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::SelectLine);
+                            }
+                            Action::SelectAll => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::SelectAll);
+                            }
+                            Action::Click(point) => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::Click(point));
+                            }
+                            Action::Drag(point) => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::Drag(point));
+                            }
+                            Action::Scroll { lines } => {
+                                self.search_items_tab
+                                    .search_results
+                                    .perform(Action::Scroll { lines });
+                            }
+                        }
                     }
-                    Action::SelectAll => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::SelectAll);
+                }
+            }
+            Message::Gear(gear_message) => {
+                match gear_message {
+                    GearMessage::HelmetSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.helmet_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.helmets.push(name);
+                        self.config_file_tab.save_config();
                     }
-                    Action::Click(point) => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::Click(point));
+                    GearMessage::AddHelmet => {
+                        self.config_file_tab.gear.helmet_selections.push(None);
                     }
-                    Action::Drag(point) => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::Drag(point));
+                    GearMessage::ChestplateSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.chestplate_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.chest_plates.push(name);
+                        self.config_file_tab.save_config();
                     }
-                    Action::Scroll { lines } => {
-                        self.search_items_tab
-                            .search_results
-                            .perform(Action::Scroll { lines });
+                    GearMessage::AddChestplate => {
+                        self.config_file_tab.gear.chestplate_selections.push(None);
+                    }
+                    GearMessage::LeggingsSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.leggings_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.leggings.push(name);
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::AddLeggings => {
+                        self.config_file_tab.gear.leggings_selections.push(None);
+                    }
+                    GearMessage::BootsSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.boots_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.boots.push(name);
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::AddBoots => {
+                        self.config_file_tab.gear.boots_selections.push(None);
+                    }
+                    GearMessage::RingsSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.rings_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.rings.push(name);
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::AddRings => {
+                        self.config_file_tab.gear.rings_selections.push(None);
+                    }
+                    GearMessage::BraceletsSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.bracelets_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.bracelets.push(name);
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::AddBracelets => {
+                        self.config_file_tab.gear.bracelets_selections.push(None);
+                    }
+                    GearMessage::NecklacesSelected(idx, name) => {
+                        if let Some(selection) = self.config_file_tab.gear.necklaces_selections.get_mut(idx) {
+                            *selection = Some(name.clone());
+                        }
+                        self.config_file_tab.config.items.necklaces.push(name);
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::AddNecklaces => {
+                        self.config_file_tab.gear.necklaces_selections.push(None);
+                    }
+                    GearMessage::WeaponSelected(name) => {
+                        self.config_file_tab.gear.selected_weapon = Some(name);
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveHelmet(idx) => {
+                        self.config_file_tab.gear.helmet_selections.remove(idx);
+                        let helmet = self.config_file_tab.config.items.helmets.get(idx).cloned();
+                        if let Some(helmet) = helmet {
+                            self.config_file_tab.config.items.helmets.retain(|x| x != &helmet);
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveChestplate(idx) => {
+                        self.config_file_tab.gear.chestplate_selections.remove(idx);
+                        let chestplate = self.config_file_tab.config.items.chest_plates.get(idx).cloned();
+                        if let Some(chestplate) = chestplate {
+                            self.config_file_tab.config.items.chest_plates.retain(|x| x != &chestplate);
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveLeggings(idx) => {
+                        self.config_file_tab.gear.leggings_selections.remove(idx);
+                        let legging = self.config_file_tab.config.items.leggings.get(idx).cloned();
+                        if let Some(legging) = legging {
+                            self.config_file_tab.config.items.leggings.retain(|x| x != &legging);
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveBoots(idx) => {
+                        self.config_file_tab.gear.boots_selections.remove(idx);
+                        let boot = self.config_file_tab.config.items.boots.get(idx).cloned();
+                        if let Some(boot) = boot {
+                            self.config_file_tab.config.items.boots.retain(|x| x != &boot);
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveRings(idx) => {
+                        self.config_file_tab.gear.rings_selections.remove(idx);
+                        let ring = self.config_file_tab.config.items.rings.get(idx).cloned();
+                        if let Some(ring) = ring {
+                            self.config_file_tab.config.items.rings.retain(|x| x != &ring);
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveBracelets(idx) => {
+                        self.config_file_tab.gear.bracelets_selections.remove(idx);
+                        let bracelet = self.config_file_tab.config.items.bracelets.get(idx).cloned();
+                        if let Some(bracelet) = bracelet {
+                            self.config_file_tab.config.items.bracelets.retain(|x| x != &bracelet);
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                    GearMessage::RemoveNecklaces(idx) => {
+                        self.config_file_tab.gear.necklaces_selections.remove(idx);
+                        let necklace = self.config_file_tab.config.items.necklaces.get(idx).cloned();
+                        if let Some(necklace) = necklace {
+                            self.config_file_tab.config.items.necklaces.retain(|x| x != &necklace);
+                        }
+                        self.config_file_tab.save_config();
                     }
                 }
             }
-
-            // Player Configuration
-            Message::PlayerLevelChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.player.lvl = content.parse().unwrap_or(1);
+            Message::Player(player_message) => {
+                match player_message {
+                    PlayerMessage::LevelChanged(content) => {
+                        if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                            self.config_file_tab.config.player.lvl = content.parse().unwrap_or(1);
+                            self.config_file_tab.save_config();
+                        }
+                    }
+                    PlayerMessage::AvailablePointChanged(content) => {
+                        if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                            self.config_file_tab.config.player.available_point = content.parse().unwrap_or(200);
+                            self.config_file_tab.save_config();
+                        }
+                    }
+                    PlayerMessage::BaseHpChanged(content) => {
+                        if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                            self.config_file_tab.config.player.base_hp = content.parse().unwrap_or(500);
+                            self.config_file_tab.save_config();
+                        }
+                    }
+                }
+            }
+            Message::ThresholdFirst(threshold_first_message) => {
+                match threshold_first_message {
+                    ThresholdFirstMessage::HpChanged(content) => {
+                        if content.is_empty() {
+                            self.config_file_tab.config.threshold_first.as_mut().unwrap().min_hp = None;
+                        } else if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                            self.config_file_tab.config.threshold_first.as_mut().unwrap().min_hp = Some(content.parse().unwrap_or(0));
+                        }
+                        self.config_file_tab.save_config();
+                    }
+                }
+            }
+            Message::ThresholdSecond(threshold_second_message) => {
+                if let Some(threshold) = self.config_file_tab.config.threshold_second.as_mut() {
+                    match threshold_second_message {
+                        ThresholdSecondMessage::HprRawChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_hpr_raw = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::HprPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_hpr_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::MrChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_mr = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::LsChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_ls = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::MsChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_ms = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::SpdChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_spd = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::SdRawChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_sd_raw = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::SdPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_sd_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::HprChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_hpr = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdSecondMessage::ExpBonusChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_exp_bonus = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                    }
                     self.config_file_tab.save_config();
                 }
             }
-            Message::PlayerAvailablePointChanged(content) => {
-                if content
-                    .chars()
-                    .all(|c| c.is_ascii_digit() || c == '-' || c == '-')
-                {
-                    self.config_file_tab.config.player.available_point =
-                        content.parse().unwrap_or(200);
+            Message::ThresholdThird(threshold_third_message) => {
+                if let Some(threshold) = self.config_file_tab.config.threshold_third.as_mut() {
+                    match threshold_third_message {
+                        ThresholdThirdMessage::EarthDefChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_earth_defense = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdThirdMessage::ThunderDefChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_thunder_defense = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdThirdMessage::WaterDefChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_water_defense = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdThirdMessage::FireDefChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_fire_defense = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdThirdMessage::AirDefChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_air_defense = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                    }
                     self.config_file_tab.save_config();
                 }
             }
-            Message::PlayerBaseHpChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.player.base_hp = content.parse().unwrap_or(500);
+            Message::ThresholdFourth(threshold_fourth_message) => {
+                if let Some(threshold) = self.config_file_tab.config.threshold_fourth.as_mut() {
+                    match threshold_fourth_message {
+                        ThresholdFourthMessage::NeutralDamPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_neutral_dam_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFourthMessage::EarthDamPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_earth_dam_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFourthMessage::ThunderDamPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_thunder_dam_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFourthMessage::WaterDamPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_water_dam_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFourthMessage::FireDamPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_fire_dam_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFourthMessage::AirDamPctChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_air_dam_pct = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                    }
                     self.config_file_tab.save_config();
                 }
             }
-
-            // Threshold First Settings
-            Message::ThresholdFirstHpChanged(content) => {
-                if content.is_empty() {
-                    self.config_file_tab
-                        .config
-                        .threshold_first
-                        .as_mut()
-                        .unwrap()
-                        .min_hp = None;
-                } else if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_first
-                        .as_mut()
-                        .unwrap()
-                        .min_hp = Some(content.parse().unwrap_or(0));
-                }
-                self.config_file_tab.save_config();
-            }
-
-            // Threshold Second Settings
-            Message::ThresholdSecondHprRawChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_hpr_raw = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
+            Message::ThresholdFifth(threshold_fifth_message) => {
+                if let Some(threshold) = self.config_file_tab.config.threshold_fifth.as_mut() {
+                    match threshold_fifth_message {
+                        ThresholdFifthMessage::EarthPointChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_earth_point = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFifthMessage::ThunderPointChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_thunder_point = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFifthMessage::WaterPointChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_water_point = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFifthMessage::FirePointChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_fire_point = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFifthMessage::AirPointChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_air_point = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                        ThresholdFifthMessage::EhpChanged(content) => {
+                            if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                                threshold.min_ehp = match content.is_empty() {
+                                    true => None,
+                                    false => Some(content.parse().unwrap_or(0))
+                                };
+                            }
+                        }
+                    }
                     self.config_file_tab.save_config();
                 }
-            }
-            Message::ThresholdSecondHprPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_hpr_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondMrChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_mr = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondLsChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_ls = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondMsChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_ms = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondSpdChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_spd = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondSdRawChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_sd_raw = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondSdPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_sd_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondHprChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_hpr = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdSecondExpBonusChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_second
-                        .as_mut()
-                        .unwrap()
-                        .min_exp_bonus = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            // Threshold Third
-            Message::ThresholdThirdEarthDefChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_third
-                        .as_mut()
-                        .unwrap()
-                        .min_earth_defense = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            Message::ThresholdThirdThunderDefChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_third
-                        .as_mut()
-                        .unwrap()
-                        .min_thunder_defense = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            Message::ThresholdThirdWaterDefChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_third
-                        .as_mut()
-                        .unwrap()
-                        .min_water_defense = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            Message::ThresholdThirdFireDefChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_third
-                        .as_mut()
-                        .unwrap()
-                        .min_fire_defense = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            Message::ThresholdThirdAirDefChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_third
-                        .as_mut()
-                        .unwrap()
-                        .min_air_defense = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            // Threshold Fourth
-            Message::ThresholdFourthNeutralDamPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_fourth
-                        .as_mut()
-                        .unwrap()
-                        .min_neutral_dam_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFourthEarthDamPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_fourth
-                        .as_mut()
-                        .unwrap()
-                        .min_earth_dam_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFourthThunderDamPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_fourth
-                        .as_mut()
-                        .unwrap()
-                        .min_thunder_dam_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFourthWaterDamPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_fourth
-                        .as_mut()
-                        .unwrap()
-                        .min_water_dam_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFourthFireDamPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_fourth
-                        .as_mut()
-                        .unwrap()
-                        .min_fire_dam_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFourthAirDamPctChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab
-                        .config
-                        .threshold_fourth
-                        .as_mut()
-                        .unwrap()
-                        .min_air_dam_pct = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0)),
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            // Threshold Fifth
-            Message::ThresholdFifthEarthPointChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.threshold_fifth.as_mut().unwrap().min_earth_point = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0))
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFifthThunderPointChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.threshold_fifth.as_mut().unwrap().min_thunder_point = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0))
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFifthWaterPointChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.threshold_fifth.as_mut().unwrap().min_water_point = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0))
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFifthFirePointChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.threshold_fifth.as_mut().unwrap().min_fire_point = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0))
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFifthAirPointChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.threshold_fifth.as_mut().unwrap().min_air_point = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0))
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-            Message::ThresholdFifthEhpChanged(content) => {
-                if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                    self.config_file_tab.config.threshold_fifth.as_mut().unwrap().min_ehp = match content.is_empty() {
-                        true => None,
-                        false => Some(content.parse().unwrap_or(0))
-                    };
-                    self.config_file_tab.save_config();
-                }
-            }
-
-            // Gear Selection - Helmets
-            Message::HelmetSelected(idx, name) => {
-                if let Some(selection) = self.config_file_tab.gear.helmet_selections.get_mut(idx) {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.helmets.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddHelmet => {
-                self.config_file_tab.gear.helmet_selections.push(None);
-            }
-
-            // Gear Selection - Chestplates
-            Message::ChestplateSelected(idx, name) => {
-                if let Some(selection) =
-                    self.config_file_tab.gear.chestplate_selections.get_mut(idx)
-                {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.chest_plates.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddChestplate => {
-                self.config_file_tab.gear.chestplate_selections.push(None);
-            }
-
-            // Gear Selection - Leggings
-            Message::LeggingsSelected(idx, name) => {
-                if let Some(selection) = self.config_file_tab.gear.leggings_selections.get_mut(idx)
-                {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.leggings.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddLeggings => {
-                self.config_file_tab.gear.leggings_selections.push(None);
-            }
-
-            // Gear Selection - Boots
-            Message::BootsSelected(idx, name) => {
-                if let Some(selection) = self.config_file_tab.gear.boots_selections.get_mut(idx) {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.boots.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddBoots => {
-                self.config_file_tab.gear.boots_selections.push(None);
-            }
-
-            // Gear Selection - Rings
-            Message::RingsSelected(idx, name) => {
-                if let Some(selection) = self.config_file_tab.gear.rings_selections.get_mut(idx) {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.rings.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddRings => {
-                self.config_file_tab.gear.rings_selections.push(None);
-            }
-
-            // Gear Selection - Bracelets
-            Message::BraceletsSelected(idx, name) => {
-                if let Some(selection) = self.config_file_tab.gear.bracelets_selections.get_mut(idx)
-                {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.bracelets.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddBracelets => {
-                self.config_file_tab.gear.bracelets_selections.push(None);
-            }
-
-            // Gear Selection - Necklaces
-            Message::NecklacesSelected(idx, name) => {
-                if let Some(selection) = self.config_file_tab.gear.necklaces_selections.get_mut(idx)
-                {
-                    *selection = Some(name.clone());
-                }
-                self.config_file_tab.config.items.necklaces.push(name);
-                self.config_file_tab.save_config();
-            }
-            Message::AddNecklaces => {
-                self.config_file_tab.gear.necklaces_selections.push(None);
-            }
-
-            // Gear Selection - Weapon
-            Message::WeaponSelected(name) => {
-                self.config_file_tab.gear.selected_weapon = Some(name);
-                self.config_file_tab.save_config();
             }
         }
     }
@@ -1017,17 +877,15 @@ impl Tabs {
                         "Enter search parameters...",
                         &self.search_items_tab.search_input
                     )
-                    .on_input(|input| Message::SearchInputChanged(input))
-                    .on_submit(Message::SearchInputSubmitted)
+                    .on_input(|input| Message::Search(SearchMessage::InputChanged(input)))
+                    .on_submit(Message::Search(SearchMessage::InputSubmitted))
                     .padding(10)
                     .width(Length::Fill),
                     text_editor(
                         &self.search_items_tab.search_results
                     )
                     .placeholder("Output will appear here...")
-                    .on_action(Message::SearchItemEditorAction)/* 
-                    .line_height(30.0)
-                    .size(16) */
+                    .on_action(|action| Message::Search(SearchMessage::ItemEditorAction(action)))
                 ]
                 .spacing(20)
                 .align_x(Horizontal::Center);
@@ -1101,7 +959,7 @@ impl Tabs {
                                     "Enter level (1-106)...",
                                     &self.config_file_tab.config.player.lvl.to_string()
                                 )
-                                .on_input(Message::PlayerLevelChanged)
+                                .on_input(|input| Message::Player(PlayerMessage::LevelChanged(input)))
                                 .size(16)
                                 .padding(5)
                                 .width(Length::Fill),
@@ -1112,7 +970,7 @@ impl Tabs {
                                     "Enter points...", 
                                     &self.config_file_tab.config.player.available_point.to_string()
                                 )
-                                .on_input(Message::PlayerAvailablePointChanged)
+                                .on_input(|input| Message::Player(PlayerMessage::AvailablePointChanged(input)))
                                 .size(16)
                                 .padding(5)
                                 .width(Length::Fill),
@@ -1123,7 +981,7 @@ impl Tabs {
                                     "Enter base HP...",
                                     &self.config_file_tab.config.player.base_hp.to_string()
                                 )
-                                .on_input(Message::PlayerBaseHpChanged)
+                                .on_input(|input| Message::Player(PlayerMessage::BaseHpChanged(input)))
                                 .size(16)
                                 .padding(5)
                                 .width(Length::Fill),
@@ -1145,7 +1003,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFirstHpChanged)
+                        .on_input(|input| Message::ThresholdFirst(ThresholdFirstMessage::HpChanged(input)))
                         .padding(5)
                         .width(Length::Fill),
                             ],
@@ -1154,7 +1012,7 @@ impl Tabs {
                     .width(Length::Fill)
                     .height(Length::Shrink)
                     .padding(10),
-                    // Threshold second settings
+                    // Threshold Second settings
                     text("Threshold Second Settings").size(20),
                     container(
                         column![
@@ -1166,7 +1024,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondHprRawChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::HprRawChanged(input)))
                         .padding(5)
                         .width(Length::Fill),
                     ],
@@ -1178,7 +1036,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondHprPctChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::HprPctChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1191,7 +1049,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondMrChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::MrChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1204,7 +1062,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondLsChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::LsChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1217,7 +1075,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondMsChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::MsChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1230,7 +1088,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondSpdChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::SpdChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1243,7 +1101,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondSdRawChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::SdRawChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1256,7 +1114,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondSdPctChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::SdPctChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1269,7 +1127,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondHprChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::HprChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1282,7 +1140,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdSecondExpBonusChanged)
+                        .on_input(|input| Message::ThresholdSecond(ThresholdSecondMessage::ExpBonusChanged(input)))
                         .size(16)
                         .padding(5)
                         .width(Length::Fill),
@@ -1292,7 +1150,7 @@ impl Tabs {
                     .width(Length::Fill)
                     .height(Length::Shrink)
                     .padding(10),
-                    // Threshold third settings
+                    // Threshold Third settings
                     text("Threshold Third Settings").size(20),
                     container(
                         column![
@@ -1304,8 +1162,8 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
+                        .on_input(|input| Message::ThresholdThird(ThresholdThirdMessage::EarthDefChanged(input)))
                         .padding(5)
-                        .on_input(Message::ThresholdThirdEarthDefChanged)
                         .width(Length::Fill),
                     ],
                     row![
@@ -1316,8 +1174,8 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
+                        .on_input(|input| Message::ThresholdThird(ThresholdThirdMessage::ThunderDefChanged(input)))
                         .padding(5)
-                        .on_input(Message::ThresholdThirdThunderDefChanged)
                         .width(Length::Fill),
                     ],
                     row![
@@ -1328,8 +1186,8 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
+                        .on_input(|input| Message::ThresholdThird(ThresholdThirdMessage::WaterDefChanged(input)))
                         .padding(5)
-                        .on_input(Message::ThresholdThirdWaterDefChanged)
                         .width(Length::Fill),
                     ],
                     row![
@@ -1340,8 +1198,8 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
+                        .on_input(|input| Message::ThresholdThird(ThresholdThirdMessage::FireDefChanged(input)))
                         .padding(5)
-                        .on_input(Message::ThresholdThirdFireDefChanged)
                         .width(Length::Fill),
                     ],
                     row![
@@ -1352,8 +1210,8 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
+                        .on_input(|input| Message::ThresholdThird(ThresholdThirdMessage::AirDefChanged(input)))
                         .padding(5)
-                        .on_input(Message::ThresholdThirdAirDefChanged)
                         .width(Length::Fill),
                     ],
                         ]
@@ -1361,7 +1219,7 @@ impl Tabs {
                     .width(Length::Fill)
                     .height(Length::Shrink)
                     .padding(10),
-                    // Threshold fourth settings
+                    // Threshold Fourth settings
                     text("Threshold Fourth Settings").size(20),
                     container(
                         column![
@@ -1373,7 +1231,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFourthNeutralDamPctChanged)
+                        .on_input(|input| Message::ThresholdFourth(ThresholdFourthMessage::NeutralDamPctChanged(input)))
                         .padding(10)
                         .width(Length::Fill),
                     ],
@@ -1385,7 +1243,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFourthEarthDamPctChanged)
+                        .on_input(|input| Message::ThresholdFourth(ThresholdFourthMessage::EarthDamPctChanged(input)))
                         .padding(10)
                         .width(Length::Fill),
                     ],
@@ -1397,7 +1255,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFourthThunderDamPctChanged)
+                        .on_input(|input| Message::ThresholdFourth(ThresholdFourthMessage::ThunderDamPctChanged(input)))
                         .padding(10)
                         .width(Length::Fill),
                     ],
@@ -1409,7 +1267,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFourthWaterDamPctChanged)
+                        .on_input(|input| Message::ThresholdFourth(ThresholdFourthMessage::WaterDamPctChanged(input)))
                         .padding(10)
                         .width(Length::Fill),
                     ],
@@ -1421,7 +1279,7 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFourthFireDamPctChanged)
+                        .on_input(|input| Message::ThresholdFourth(ThresholdFourthMessage::FireDamPctChanged(input)))
                         .padding(10)
                         .width(Length::Fill),
                     ],
@@ -1433,13 +1291,13 @@ impl Tabs {
                                 .map(|v| v.to_string())
                                 .unwrap_or_default()
                         )
-                        .on_input(Message::ThresholdFourthAirDamPctChanged)
+                        .on_input(|input| Message::ThresholdFourth(ThresholdFourthMessage::AirDamPctChanged(input)))
                         .padding(10)
                         .width(Length::Fill),
                     ],
                         ]
                     ),
-                    // Threshold fifth settings
+                    // Threshold Fifth settings
                     text("Threshold Fifth Settings").size(20),
                     container(
                         column![
@@ -1451,7 +1309,7 @@ impl Tabs {
                                         .map(|v| v.to_string())
                                         .unwrap_or_default()
                                 )
-                                .on_input(Message::ThresholdFifthEarthPointChanged)
+                                .on_input(|input| Message::ThresholdFifth(ThresholdFifthMessage::EarthPointChanged(input)))
                                 .padding(10)
                                 .width(Length::Fill),
                             ],
@@ -1463,7 +1321,7 @@ impl Tabs {
                                         .map(|v| v.to_string())
                                         .unwrap_or_default()
                                 )
-                                .on_input(Message::ThresholdFifthThunderPointChanged)
+                                .on_input(|input| Message::ThresholdFifth(ThresholdFifthMessage::ThunderPointChanged(input)))
                                 .padding(10)
                                 .width(Length::Fill),
                             ],
@@ -1475,7 +1333,7 @@ impl Tabs {
                                         .map(|v| v.to_string())
                                         .unwrap_or_default()
                                 )
-                                .on_input(Message::ThresholdFifthWaterPointChanged)
+                                .on_input(|input| Message::ThresholdFifth(ThresholdFifthMessage::WaterPointChanged(input)))
                                 .padding(10)
                                 .width(Length::Fill),
                             ],
@@ -1487,7 +1345,7 @@ impl Tabs {
                                         .map(|v| v.to_string())
                                         .unwrap_or_default()
                                 )
-                                .on_input(Message::ThresholdFifthFirePointChanged)
+                                .on_input(|input| Message::ThresholdFifth(ThresholdFifthMessage::FirePointChanged(input)))
                                 .padding(10)
                                 .width(Length::Fill),
                             ],
@@ -1499,7 +1357,7 @@ impl Tabs {
                                         .map(|v| v.to_string())
                                         .unwrap_or_default()
                                 )
-                                .on_input(Message::ThresholdFifthAirPointChanged)
+                                .on_input(|input| Message::ThresholdFifth(ThresholdFifthMessage::AirPointChanged(input)))
                                 .padding(10)
                                 .width(Length::Fill),
                             ],
@@ -1511,7 +1369,7 @@ impl Tabs {
                                         .map(|v| v.to_string())
                                         .unwrap_or_default()
                                 )
-                                .on_input(Message::ThresholdFifthEhpChanged)
+                                .on_input(|input| Message::ThresholdFifth(ThresholdFifthMessage::EhpChanged(input)))
                                 .padding(10)
                                 .width(Length::Fill),
                             ],
@@ -1529,14 +1387,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.helmets,
-                                    "Select helmet...",
-                                    selection.as_ref(),
-                                    move |name| Message::HelmetSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.helmets,
+                                            "Select helmet...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::HelmetSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveHelmet(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Helmet").on_press(Message::AddHelmet)
+                        button("Add Helmet").on_press(Message::Gear(GearMessage::AddHelmet)),
                     ]
                     .spacing(10),
                     // Gear Selection - Chestplates
@@ -1548,14 +1414,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.chestplates,
-                                    "Select chestplate...",
-                                    selection.as_ref(),
-                                    move |name| Message::ChestplateSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.chestplates,
+                                            "Select chestplate...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::ChestplateSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveChestplate(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Chestplate").on_press(Message::AddChestplate)
+                        button("Add Chestplate").on_press(Message::Gear(GearMessage::AddChestplate)),
                     ]
                     .spacing(10),
                     // Gear Selection - Leggings
@@ -1567,14 +1441,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.leggings,
-                                    "Select leggings...",
-                                    selection.as_ref(),
-                                    move |name| Message::LeggingsSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.leggings,
+                                            "Select leggings...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::LeggingsSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveLeggings(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Leggings").on_press(Message::AddLeggings)
+                        button("Add Leggings").on_press(Message::Gear(GearMessage::AddLeggings)),
                     ]
                     .spacing(10),
                     // Gear Selection - Boots
@@ -1586,14 +1468,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.boots,
-                                    "Select boots...",
-                                    selection.as_ref(),
-                                    move |name| Message::BootsSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.boots,
+                                            "Select boots...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::BootsSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveBoots(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Boots").on_press(Message::AddBoots)
+                        button("Add Boots").on_press(Message::Gear(GearMessage::AddBoots)),
                     ]
                     .spacing(10),
                     // Gear Selection - Rings
@@ -1605,14 +1495,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.rings,
-                                    "Select ring...",
-                                    selection.as_ref(),
-                                    move |name| Message::RingsSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.rings,
+                                            "Select ring...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::RingsSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveRings(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Ring").on_press(Message::AddRings)
+                        button("Add Ring").on_press(Message::Gear(GearMessage::AddRings)),
                     ]
                     .spacing(10),
                     // Gear Selection - Bracelets
@@ -1624,14 +1522,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.bracelets,
-                                    "Select bracelet...",
-                                    selection.as_ref(),
-                                    move |name| Message::BraceletsSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.bracelets,
+                                            "Select bracelet...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::BraceletsSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveBracelets(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Bracelet").on_press(Message::AddBracelets)
+                        button("Add Bracelet").on_press(Message::Gear(GearMessage::AddBracelets)),
                     ]
                     .spacing(10),
                     // Gear Selection - Necklaces
@@ -1643,14 +1549,22 @@ impl Tabs {
                             .iter()
                             .enumerate()
                             .fold(column![].spacing(5), |col, (idx, selection)| {
-                                col.push(combo_box(
-                                    &self.config_file_tab.gear.necklaces,
-                                    "Select necklace...",
-                                    selection.as_ref(),
-                                    move |name| Message::NecklacesSelected(idx, name),
-                                ))
+                                col.push(
+                                    row![
+                                        combo_box(
+                                            &self.config_file_tab.gear.necklaces,
+                                            "Select necklace...",
+                                            selection.as_ref(),
+                                            move |name| Message::Gear(GearMessage::NecklacesSelected(idx, name)),
+                                        ),
+                                        button("X")
+                                            .on_press(Message::Gear(GearMessage::RemoveNecklaces(idx)))
+                                            .padding(5),
+                                    ]
+                                    .spacing(10)
+                                )
                             }),
-                        button("Add Necklace").on_press(Message::AddNecklaces)
+                        button("Add Necklace").on_press(Message::Gear(GearMessage::AddNecklaces)),
                     ]
                     .spacing(10),
                     // Gear Selection - Weapon
@@ -1660,20 +1574,29 @@ impl Tabs {
                             &self.config_file_tab.gear.weapons,
                             "Select weapon...",
                             self.config_file_tab.gear.selected_weapon.as_ref(),
-                            Message::WeaponSelected,
+                            |name| Message::Gear(GearMessage::WeaponSelected(name)),
                         ),
                     ]
                     .spacing(10),
                 ]
                 .spacing(20)
-                .align_x(Horizontal::Center);
+                .align_x(Horizontal::Left);
 
-                container(scrollable(content).width(Length::Fill).height(Length::Fill))
-                    .align_x(Horizontal::Center)
-                    .align_y(Vertical::Top)
+                // Wrap the content in a container with padding before scrollable
+                container(
+                    scrollable(
+                        container(content)
+                            .padding(20) // Add padding around the content
+                            .width(Length::Fill)
+                    )
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .into()
+                )
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Top)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
             }
             Tab::Builder => container(column![text("Content for Builder Tab")]).into(),
         };
