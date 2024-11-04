@@ -7,8 +7,8 @@
 /settings
 Cargo.lock
 **/*.rs.bk
-**/builder
-**/search_item
+/builder
+/search_item
 **/*.toml
 **/*.txt
 **/*.json

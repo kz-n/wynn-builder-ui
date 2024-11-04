@@ -10,6 +10,7 @@ use messages::*;
 use serde::{Deserialize, Serialize};
 
 mod build_config;
+mod builder;
 mod messages;
 mod theme_serde;
 
@@ -950,12 +951,19 @@ impl Tabs {
                             "Items.json file found",
                             is_items_json_found(),
                         ).spacing(10),
-                    ]
+                    ],
+                    text("Instructions for first time setup").size(20),
+                    text("1. Make sure you've extracted both the release Wynn Builder UI and the WynnBuilderTools release into the same folder.").size(16),
+                    text("2. Go to the Search tab, and run any command with --sort or -s to generate the items.json file.").size(16),
+                    text("3. Once the items.json file is generated, go to the Config File tab, and check that you get no errors.\nIf you do, check that items.json is present in the config folder, and close and re-open the application.").size(16),
+                    text("4. The builder tab is unfinished, and will be updated in the future.").size(16),
+                    text("For now, you can use the builder by running it in a terminal with no arguments.").size(16),
+                    text("I'm hoping that for now the Config tab will suffice in making the tool usable.").size(16),
                 ]
                 .spacing(20)
                 .align_x(Horizontal::Center);
 
-                container(column)
+                container(scrollable(container(column).padding(10)))
                     .align_x(Horizontal::Center)
                     .align_y(Vertical::Center)
                     .width(Length::Fill)
