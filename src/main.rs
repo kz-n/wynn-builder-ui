@@ -29,6 +29,15 @@ struct Tabs {
     theme: Theme,
     search_items_tab: SearchItemsTab,
     config_file_tab: ConfigFileTab,
+    builder_tab: BuilderTab,
+}
+
+#[derive(Default)]
+struct BuilderTab {
+    builder_results: String,
+    builder_editor: text_editor::Content,
+    is_running: bool,
+    builder_status: BuilderState,
 }
 
 impl ConfigFileTab {
@@ -297,6 +306,12 @@ impl Tabs {
                 },
                 // Search Tab initialization
                 search_items_tab: SearchItemsTab::default(),
+                builder_tab: BuilderTab {
+                    builder_results: String::new(),
+                    builder_editor: text_editor::Content::with_text(&String::new()),
+                    is_running: false,
+                    builder_status: BuilderState::None,
+                },
             },
             Task::none(),
         )
@@ -802,6 +817,70 @@ impl Tabs {
                     self.config_file_tab.save_config();
                 }
             }
+            Message::Hppeng(hppeng_message) => {
+                match hppeng_message {
+                    HppengMessage::UrlPrefixChanged(content) => {
+                        self.config_file_tab.config.hppeng.url_prefix = content;
+                    }
+                    HppengMessage::UrlSuffixChanged(content) => {
+                        self.config_file_tab.config.hppeng.url_suffix = content;
+                    }
+                    HppengMessage::DbPathChanged(content) => {
+                        self.config_file_tab.config.hppeng.db_path = content;
+                    }
+                    HppengMessage::MigrationsPathChanged(content) => {
+                        self.config_file_tab.config.hppeng.migrations_path = content;
+                    }
+                    HppengMessage::ItemsFileChanged(content) => {
+                        self.config_file_tab.config.hppeng.items_file = content;
+                    }
+                    HppengMessage::LogBuildsChanged(value) => {
+                        self.config_file_tab.config.hppeng.log_builds = value;
+                    }
+                    HppengMessage::LogDbErrorsChanged(value) => {
+                        self.config_file_tab.config.hppeng.log_db_errors = value;
+                    }
+                    HppengMessage::DbRetryCountChanged(content) => {
+                        self.config_file_tab.config.hppeng.db_retry_count =
+                            content.parse().unwrap_or(3);
+                    }
+                }
+                self.config_file_tab.save_config();
+            }
+            Message::Builder(builder_message) => match builder_message {
+                BuilderMessage::Started => {
+                    self.builder_tab.builder_results.clear();
+                    self.builder_tab
+                        .builder_results
+                        .push_str("Builder process started...\n");
+                    self.builder_tab.builder_editor =
+                        text_editor::Content::with_text(&self.builder_tab.builder_results);
+                    self.builder_tab.is_running = true;
+                }
+                BuilderMessage::Output(line) => {
+                    self.builder_tab.builder_results.push_str(&line);
+                    self.builder_tab.builder_results.push('\n');
+
+                    self.builder_tab.builder_editor =
+                        text_editor::Content::with_text(&self.builder_tab.builder_results);
+                }
+                BuilderMessage::Error(error) => {
+                    self.builder_tab.builder_results.push_str("Error: ");
+                    self.builder_tab.builder_results.push_str(&error);
+                    self.builder_tab.builder_results.push('\n');
+
+                    self.builder_tab.builder_editor =
+                        text_editor::Content::with_text(&self.builder_tab.builder_results);
+                }
+                BuilderMessage::Finished => {
+                    self.builder_tab
+                        .builder_results
+                        .push_str("Builder process finished.\n");
+                    self.builder_tab.is_running = false;
+                    self.builder_tab.builder_editor =
+                        text_editor::Content::with_text(&self.builder_tab.builder_results);
+                }
+            },
         }
     }
 
@@ -982,6 +1061,101 @@ impl Tabs {
                                     &self.config_file_tab.config.player.base_hp.to_string()
                                 )
                                 .on_input(|input| Message::Player(PlayerMessage::BaseHpChanged(input)))
+                                .size(16)
+                                .padding(5)
+                                .width(Length::Fill),
+                            ],
+                        ]
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Shrink)
+                    .padding(10),
+                    // Hppeng settings
+                    text("Hppeng Settings").size(20),
+                    container(
+                        column![
+                            row![
+                                text("URL Prefix:").width(Length::Fixed(150.0)),
+                                text_input(
+                                    "Enter URL prefix...",
+                                    &self.config_file_tab.config.hppeng.url_prefix
+                                )
+                                .on_input(|input| Message::Hppeng(HppengMessage::UrlPrefixChanged(input)))
+                                .size(16)
+                                .padding(5)
+                                .width(Length::Fill),
+                            ],
+                            row![
+                                text("URL Suffix:").width(Length::Fixed(150.0)),
+                                text_input(
+                                    "Enter URL suffix...",
+                                    &self.config_file_tab.config.hppeng.url_suffix
+                                )
+                                .on_input(|input| Message::Hppeng(HppengMessage::UrlSuffixChanged(input)))
+                                .size(16)
+                                .padding(5)
+                                .width(Length::Fill),
+                            ],
+                            row![
+                                text("Database Path:").width(Length::Fixed(150.0)),
+                                text_input(
+                                    "Enter database path...",
+                                    &self.config_file_tab.config.hppeng.db_path
+                                )
+                                .on_input(|input| Message::Hppeng(HppengMessage::DbPathChanged(input)))
+                                .size(16)
+                                .padding(5)
+                                .width(Length::Fill),
+                            ],
+                            row![
+                                text("Migrations Path:").width(Length::Fixed(150.0)),
+                                text_input(
+                                    "Enter migrations path...",
+                                    &self.config_file_tab.config.hppeng.migrations_path
+                                )
+                                .on_input(|input| Message::Hppeng(HppengMessage::MigrationsPathChanged(input)))
+                                .size(16)
+                                .padding(5)
+                                .width(Length::Fill),
+                            ],
+                            row![
+                                text("Items File:").width(Length::Fixed(150.0)),
+                                text_input(
+                                    "Enter items file path...",
+                                    &self.config_file_tab.config.hppeng.items_file
+                                )
+                                .on_input(|input| Message::Hppeng(HppengMessage::ItemsFileChanged(input)))
+                                .size(16)
+                                .padding(5)
+                                .width(Length::Fill),
+                            ],
+                            row![
+                                text("Log Builds:").width(Length::Fixed(150.0)),
+                                checkbox(
+                                    "",
+                                    self.config_file_tab.config.hppeng.log_builds,
+                                )
+                                .on_toggle(|value| Message::Hppeng(HppengMessage::LogBuildsChanged(value)))
+                                .size(16)
+                                .spacing(5),
+                            ],
+                            row![
+                                text("Log DB Errors:").width(Length::Fixed(150.0)),
+                                checkbox(
+                                    "",
+                                    self.config_file_tab.config.hppeng.log_db_errors,
+                                )
+                                .on_toggle(|value| Message::Hppeng(HppengMessage::LogDbErrorsChanged(value)))
+                                .size(16)
+                                .spacing(5),
+                            ],
+                            row![
+                                text("DB Retry Count:").width(Length::Fixed(150.0)),
+                                text_input(
+                                    "Enter retry count...",
+                                    &self.config_file_tab.config.hppeng.db_retry_count.to_string()
+                                )
+                                .on_input(|input| Message::Hppeng(HppengMessage::DbRetryCountChanged(input)))
                                 .size(16)
                                 .padding(5)
                                 .width(Length::Fill),
