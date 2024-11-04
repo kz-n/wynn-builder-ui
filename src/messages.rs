@@ -91,6 +91,18 @@ pub enum ThresholdFifthMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum HppengMessage {
+    UrlPrefixChanged(String),
+    UrlSuffixChanged(String),
+    DbPathChanged(String),
+    MigrationsPathChanged(String),
+    ItemsFileChanged(String),
+    LogBuildsChanged(bool),
+    LogDbErrorsChanged(bool),
+    DbRetryCountChanged(String),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     TabSelected(Tab),
     ThemeChanged(Theme),
@@ -102,4 +114,5 @@ pub enum Message {
     ThresholdThird(ThresholdThirdMessage),
     ThresholdFourth(ThresholdFourthMessage),
     ThresholdFifth(ThresholdFifthMessage),
+    Hppeng(HppengMessage),
 }

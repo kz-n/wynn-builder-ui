@@ -10,11 +10,11 @@ use messages::*;
 use serde::{Deserialize, Serialize};
 
 mod build_config;
-mod theme_serde;
 mod messages;
+mod theme_serde;
 
 #[derive(Debug, Clone, PartialEq, Default)]
-enum Tab {
+pub enum Tab {
     #[default]
     Intro,
     Search,
@@ -37,7 +37,6 @@ struct BuilderTab {
     builder_results: String,
     builder_editor: text_editor::Content,
     is_running: bool,
-    builder_status: BuilderState,
 }
 
 impl ConfigFileTab {
@@ -310,7 +309,6 @@ impl Tabs {
                     builder_results: String::new(),
                     builder_editor: text_editor::Content::with_text(&String::new()),
                     is_running: false,
-                    builder_status: BuilderState::None,
                 },
             },
             Task::none(),
@@ -321,7 +319,7 @@ impl Tabs {
         match message {
             Message::TabSelected(tab) => {
                 self.active_tab = tab;
-            },
+            }
             Message::ThemeChanged(theme) => {
                 self.theme = theme.clone();
 
@@ -333,246 +331,305 @@ impl Tabs {
                 let theme_path = settings_dir.join("theme.toml");
                 let theme_toml = toml::to_string(&theme_config).unwrap();
                 let _ = std::fs::write(theme_path, theme_toml);
+            }
+            Message::Search(search_message) => match search_message {
+                SearchMessage::InputChanged(input_text) => {
+                    self.search_items_tab.search_input = input_text;
+                }
+                SearchMessage::InputSubmitted => {
+                    let binary_name = if cfg!(windows) {
+                        "search_item.exe"
+                    } else {
+                        "search_item"
+                    };
+
+                    let args: Vec<&str> = self
+                        .search_items_tab
+                        .search_input
+                        .split_whitespace()
+                        .collect();
+
+                    let output = match std::process::Command::new(binary_name).args(args).output() {
+                        Ok(output) => match output.status.success() {
+                            true => String::from_utf8_lossy(&output.stdout).to_string(),
+                            false => String::from_utf8_lossy(&output.stderr).to_string(),
+                        },
+                        Err(e) => format!("Error: Could not execute search_item binary: {}", e),
+                    };
+
+                    self.search_items_tab.search_results = text_editor::Content::with_text(&output);
+                }
+                SearchMessage::ItemEditorAction(action) => match action {
+                    Action::Edit(_) => (),
+                    Action::Move(_) => (),
+                    Action::Select(motion) => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::Select(motion));
+                    }
+                    Action::SelectWord => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::SelectWord);
+                    }
+                    Action::SelectLine => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::SelectLine);
+                    }
+                    Action::SelectAll => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::SelectAll);
+                    }
+                    Action::Click(point) => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::Click(point));
+                    }
+                    Action::Drag(point) => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::Drag(point));
+                    }
+                    Action::Scroll { lines } => {
+                        self.search_items_tab
+                            .search_results
+                            .perform(Action::Scroll { lines });
+                    }
+                },
             },
-            Message::Search(search_message) => {
-                match search_message {
-                    SearchMessage::InputChanged(input_text) => {
-                        self.search_items_tab.search_input = input_text;
+            Message::Gear(gear_message) => match gear_message {
+                GearMessage::HelmetSelected(idx, name) => {
+                    if let Some(selection) =
+                        self.config_file_tab.gear.helmet_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    SearchMessage::InputSubmitted => {
-                        let binary_name = if cfg!(windows) {
-                            "search_item.exe"
-                        } else {
-                            "search_item"
-                        };
-
-                        let args: Vec<&str> = self
-                            .search_items_tab
-                            .search_input
-                            .split_whitespace()
-                            .collect();
-
-                        let output = match std::process::Command::new(binary_name).args(args).output() {
-                            Ok(output) => match output.status.success() {
-                                true => String::from_utf8_lossy(&output.stdout).to_string(),
-                                false => String::from_utf8_lossy(&output.stderr).to_string(),
-                            },
-                            Err(e) => format!("Error: Could not execute search_item binary: {}", e),
-                        };
-
-                        self.search_items_tab.search_results = text_editor::Content::with_text(&output);
-                    }
-                    SearchMessage::ItemEditorAction(action) => {
-                        match action {
-                            Action::Edit(_) => (), 
-                            Action::Move(_) => (),
-                            Action::Select(motion) => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::Select(motion));
-                            }
-                            Action::SelectWord => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::SelectWord);
-                            }
-                            Action::SelectLine => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::SelectLine);
-                            }
-                            Action::SelectAll => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::SelectAll);
-                            }
-                            Action::Click(point) => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::Click(point));
-                            }
-                            Action::Drag(point) => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::Drag(point));
-                            }
-                            Action::Scroll { lines } => {
-                                self.search_items_tab
-                                    .search_results
-                                    .perform(Action::Scroll { lines });
-                            }
-                        }
-                    }
+                    self.config_file_tab.config.items.helmets.push(name);
+                    self.config_file_tab.save_config();
                 }
-            }
-            Message::Gear(gear_message) => {
-                match gear_message {
-                    GearMessage::HelmetSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.helmet_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.helmets.push(name);
-                        self.config_file_tab.save_config();
+                GearMessage::AddHelmet => {
+                    self.config_file_tab.gear.helmet_selections.push(None);
+                }
+                GearMessage::ChestplateSelected(idx, name) => {
+                    if let Some(selection) =
+                        self.config_file_tab.gear.chestplate_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    GearMessage::AddHelmet => {
-                        self.config_file_tab.gear.helmet_selections.push(None);
+                    self.config_file_tab.config.items.chest_plates.push(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::AddChestplate => {
+                    self.config_file_tab.gear.chestplate_selections.push(None);
+                }
+                GearMessage::LeggingsSelected(idx, name) => {
+                    if let Some(selection) =
+                        self.config_file_tab.gear.leggings_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    GearMessage::ChestplateSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.chestplate_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.chest_plates.push(name);
-                        self.config_file_tab.save_config();
+                    self.config_file_tab.config.items.leggings.push(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::AddLeggings => {
+                    self.config_file_tab.gear.leggings_selections.push(None);
+                }
+                GearMessage::BootsSelected(idx, name) => {
+                    if let Some(selection) = self.config_file_tab.gear.boots_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    GearMessage::AddChestplate => {
-                        self.config_file_tab.gear.chestplate_selections.push(None);
+                    self.config_file_tab.config.items.boots.push(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::AddBoots => {
+                    self.config_file_tab.gear.boots_selections.push(None);
+                }
+                GearMessage::RingsSelected(idx, name) => {
+                    if let Some(selection) = self.config_file_tab.gear.rings_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    GearMessage::LeggingsSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.leggings_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.leggings.push(name);
-                        self.config_file_tab.save_config();
+                    self.config_file_tab.config.items.rings.push(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::AddRings => {
+                    self.config_file_tab.gear.rings_selections.push(None);
+                }
+                GearMessage::BraceletsSelected(idx, name) => {
+                    if let Some(selection) =
+                        self.config_file_tab.gear.bracelets_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    GearMessage::AddLeggings => {
-                        self.config_file_tab.gear.leggings_selections.push(None);
+                    self.config_file_tab.config.items.bracelets.push(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::AddBracelets => {
+                    self.config_file_tab.gear.bracelets_selections.push(None);
+                }
+                GearMessage::NecklacesSelected(idx, name) => {
+                    if let Some(selection) =
+                        self.config_file_tab.gear.necklaces_selections.get_mut(idx)
+                    {
+                        *selection = Some(name.clone());
                     }
-                    GearMessage::BootsSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.boots_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.boots.push(name);
-                        self.config_file_tab.save_config();
+                    self.config_file_tab.config.items.necklaces.push(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::AddNecklaces => {
+                    self.config_file_tab.gear.necklaces_selections.push(None);
+                }
+                GearMessage::WeaponSelected(name) => {
+                    self.config_file_tab.gear.selected_weapon = Some(name);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveHelmet(idx) => {
+                    self.config_file_tab.gear.helmet_selections.remove(idx);
+                    let helmet = self.config_file_tab.config.items.helmets.get(idx).cloned();
+                    if let Some(helmet) = helmet {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .helmets
+                            .retain(|x| x != &helmet);
                     }
-                    GearMessage::AddBoots => {
-                        self.config_file_tab.gear.boots_selections.push(None);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveChestplate(idx) => {
+                    self.config_file_tab.gear.chestplate_selections.remove(idx);
+                    let chestplate = self
+                        .config_file_tab
+                        .config
+                        .items
+                        .chest_plates
+                        .get(idx)
+                        .cloned();
+                    if let Some(chestplate) = chestplate {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .chest_plates
+                            .retain(|x| x != &chestplate);
                     }
-                    GearMessage::RingsSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.rings_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.rings.push(name);
-                        self.config_file_tab.save_config();
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveLeggings(idx) => {
+                    self.config_file_tab.gear.leggings_selections.remove(idx);
+                    let legging = self.config_file_tab.config.items.leggings.get(idx).cloned();
+                    if let Some(legging) = legging {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .leggings
+                            .retain(|x| x != &legging);
                     }
-                    GearMessage::AddRings => {
-                        self.config_file_tab.gear.rings_selections.push(None);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveBoots(idx) => {
+                    self.config_file_tab.gear.boots_selections.remove(idx);
+                    let boot = self.config_file_tab.config.items.boots.get(idx).cloned();
+                    if let Some(boot) = boot {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .boots
+                            .retain(|x| x != &boot);
                     }
-                    GearMessage::BraceletsSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.bracelets_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.bracelets.push(name);
-                        self.config_file_tab.save_config();
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveRings(idx) => {
+                    self.config_file_tab.gear.rings_selections.remove(idx);
+                    let ring = self.config_file_tab.config.items.rings.get(idx).cloned();
+                    if let Some(ring) = ring {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .rings
+                            .retain(|x| x != &ring);
                     }
-                    GearMessage::AddBracelets => {
-                        self.config_file_tab.gear.bracelets_selections.push(None);
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveBracelets(idx) => {
+                    self.config_file_tab.gear.bracelets_selections.remove(idx);
+                    let bracelet = self
+                        .config_file_tab
+                        .config
+                        .items
+                        .bracelets
+                        .get(idx)
+                        .cloned();
+                    if let Some(bracelet) = bracelet {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .bracelets
+                            .retain(|x| x != &bracelet);
                     }
-                    GearMessage::NecklacesSelected(idx, name) => {
-                        if let Some(selection) = self.config_file_tab.gear.necklaces_selections.get_mut(idx) {
-                            *selection = Some(name.clone());
-                        }
-                        self.config_file_tab.config.items.necklaces.push(name);
-                        self.config_file_tab.save_config();
+                    self.config_file_tab.save_config();
+                }
+                GearMessage::RemoveNecklaces(idx) => {
+                    self.config_file_tab.gear.necklaces_selections.remove(idx);
+                    let necklace = self
+                        .config_file_tab
+                        .config
+                        .items
+                        .necklaces
+                        .get(idx)
+                        .cloned();
+                    if let Some(necklace) = necklace {
+                        self.config_file_tab
+                            .config
+                            .items
+                            .necklaces
+                            .retain(|x| x != &necklace);
                     }
-                    GearMessage::AddNecklaces => {
-                        self.config_file_tab.gear.necklaces_selections.push(None);
-                    }
-                    GearMessage::WeaponSelected(name) => {
-                        self.config_file_tab.gear.selected_weapon = Some(name);
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveHelmet(idx) => {
-                        self.config_file_tab.gear.helmet_selections.remove(idx);
-                        let helmet = self.config_file_tab.config.items.helmets.get(idx).cloned();
-                        if let Some(helmet) = helmet {
-                            self.config_file_tab.config.items.helmets.retain(|x| x != &helmet);
-                        }
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveChestplate(idx) => {
-                        self.config_file_tab.gear.chestplate_selections.remove(idx);
-                        let chestplate = self.config_file_tab.config.items.chest_plates.get(idx).cloned();
-                        if let Some(chestplate) = chestplate {
-                            self.config_file_tab.config.items.chest_plates.retain(|x| x != &chestplate);
-                        }
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveLeggings(idx) => {
-                        self.config_file_tab.gear.leggings_selections.remove(idx);
-                        let legging = self.config_file_tab.config.items.leggings.get(idx).cloned();
-                        if let Some(legging) = legging {
-                            self.config_file_tab.config.items.leggings.retain(|x| x != &legging);
-                        }
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveBoots(idx) => {
-                        self.config_file_tab.gear.boots_selections.remove(idx);
-                        let boot = self.config_file_tab.config.items.boots.get(idx).cloned();
-                        if let Some(boot) = boot {
-                            self.config_file_tab.config.items.boots.retain(|x| x != &boot);
-                        }
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveRings(idx) => {
-                        self.config_file_tab.gear.rings_selections.remove(idx);
-                        let ring = self.config_file_tab.config.items.rings.get(idx).cloned();
-                        if let Some(ring) = ring {
-                            self.config_file_tab.config.items.rings.retain(|x| x != &ring);
-                        }
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveBracelets(idx) => {
-                        self.config_file_tab.gear.bracelets_selections.remove(idx);
-                        let bracelet = self.config_file_tab.config.items.bracelets.get(idx).cloned();
-                        if let Some(bracelet) = bracelet {
-                            self.config_file_tab.config.items.bracelets.retain(|x| x != &bracelet);
-                        }
-                        self.config_file_tab.save_config();
-                    }
-                    GearMessage::RemoveNecklaces(idx) => {
-                        self.config_file_tab.gear.necklaces_selections.remove(idx);
-                        let necklace = self.config_file_tab.config.items.necklaces.get(idx).cloned();
-                        if let Some(necklace) = necklace {
-                            self.config_file_tab.config.items.necklaces.retain(|x| x != &necklace);
-                        }
+                    self.config_file_tab.save_config();
+                }
+            },
+            Message::Player(player_message) => match player_message {
+                PlayerMessage::LevelChanged(content) => {
+                    if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                        self.config_file_tab.config.player.lvl = content.parse().unwrap_or(1);
                         self.config_file_tab.save_config();
                     }
                 }
-            }
-            Message::Player(player_message) => {
-                match player_message {
-                    PlayerMessage::LevelChanged(content) => {
-                        if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                            self.config_file_tab.config.player.lvl = content.parse().unwrap_or(1);
-                            self.config_file_tab.save_config();
-                        }
-                    }
-                    PlayerMessage::AvailablePointChanged(content) => {
-                        if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                            self.config_file_tab.config.player.available_point = content.parse().unwrap_or(200);
-                            self.config_file_tab.save_config();
-                        }
-                    }
-                    PlayerMessage::BaseHpChanged(content) => {
-                        if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                            self.config_file_tab.config.player.base_hp = content.parse().unwrap_or(500);
-                            self.config_file_tab.save_config();
-                        }
-                    }
-                }
-            }
-            Message::ThresholdFirst(threshold_first_message) => {
-                match threshold_first_message {
-                    ThresholdFirstMessage::HpChanged(content) => {
-                        if content.is_empty() {
-                            self.config_file_tab.config.threshold_first.as_mut().unwrap().min_hp = None;
-                        } else if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
-                            self.config_file_tab.config.threshold_first.as_mut().unwrap().min_hp = Some(content.parse().unwrap_or(0));
-                        }
+                PlayerMessage::AvailablePointChanged(content) => {
+                    if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                        self.config_file_tab.config.player.available_point =
+                            content.parse().unwrap_or(200);
                         self.config_file_tab.save_config();
                     }
                 }
-            }
+                PlayerMessage::BaseHpChanged(content) => {
+                    if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                        self.config_file_tab.config.player.base_hp = content.parse().unwrap_or(500);
+                        self.config_file_tab.save_config();
+                    }
+                }
+            },
+            Message::ThresholdFirst(threshold_first_message) => match threshold_first_message {
+                ThresholdFirstMessage::HpChanged(content) => {
+                    if content.is_empty() {
+                        self.config_file_tab
+                            .config
+                            .threshold_first
+                            .as_mut()
+                            .unwrap()
+                            .min_hp = None;
+                    } else if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
+                        self.config_file_tab
+                            .config
+                            .threshold_first
+                            .as_mut()
+                            .unwrap()
+                            .min_hp = Some(content.parse().unwrap_or(0));
+                    }
+                    self.config_file_tab.save_config();
+                }
+            },
             Message::ThresholdSecond(threshold_second_message) => {
                 if let Some(threshold) = self.config_file_tab.config.threshold_second.as_mut() {
                     match threshold_second_message {
@@ -580,7 +637,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_hpr_raw = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -588,7 +645,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_hpr_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -596,7 +653,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_mr = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -604,7 +661,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_ls = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -612,7 +669,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_ms = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -620,7 +677,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_spd = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -628,7 +685,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_sd_raw = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -636,7 +693,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_sd_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -644,7 +701,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_hpr = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -652,7 +709,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_exp_bonus = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -667,7 +724,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_earth_defense = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -675,7 +732,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_thunder_defense = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -683,7 +740,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_water_defense = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -691,7 +748,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_fire_defense = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -699,7 +756,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_air_defense = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -714,7 +771,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_neutral_dam_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -722,7 +779,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_earth_dam_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -730,7 +787,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_thunder_dam_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -738,7 +795,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_water_dam_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -746,7 +803,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_fire_dam_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -754,7 +811,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_air_dam_pct = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -769,7 +826,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_earth_point = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -777,7 +834,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_thunder_point = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -785,7 +842,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_water_point = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -793,7 +850,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_fire_point = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -801,7 +858,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_air_point = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -809,7 +866,7 @@ impl Tabs {
                             if content.chars().all(|c| c.is_ascii_digit() || c == '-') {
                                 threshold.min_ehp = match content.is_empty() {
                                     true => None,
-                                    false => Some(content.parse().unwrap_or(0))
+                                    false => Some(content.parse().unwrap_or(0)),
                                 };
                             }
                         }
@@ -847,40 +904,6 @@ impl Tabs {
                 }
                 self.config_file_tab.save_config();
             }
-            Message::Builder(builder_message) => match builder_message {
-                BuilderMessage::Started => {
-                    self.builder_tab.builder_results.clear();
-                    self.builder_tab
-                        .builder_results
-                        .push_str("Builder process started...\n");
-                    self.builder_tab.builder_editor =
-                        text_editor::Content::with_text(&self.builder_tab.builder_results);
-                    self.builder_tab.is_running = true;
-                }
-                BuilderMessage::Output(line) => {
-                    self.builder_tab.builder_results.push_str(&line);
-                    self.builder_tab.builder_results.push('\n');
-
-                    self.builder_tab.builder_editor =
-                        text_editor::Content::with_text(&self.builder_tab.builder_results);
-                }
-                BuilderMessage::Error(error) => {
-                    self.builder_tab.builder_results.push_str("Error: ");
-                    self.builder_tab.builder_results.push_str(&error);
-                    self.builder_tab.builder_results.push('\n');
-
-                    self.builder_tab.builder_editor =
-                        text_editor::Content::with_text(&self.builder_tab.builder_results);
-                }
-                BuilderMessage::Finished => {
-                    self.builder_tab
-                        .builder_results
-                        .push_str("Builder process finished.\n");
-                    self.builder_tab.is_running = false;
-                    self.builder_tab.builder_editor =
-                        text_editor::Content::with_text(&self.builder_tab.builder_results);
-                }
-            },
         }
     }
 
@@ -964,7 +987,9 @@ impl Tabs {
                         &self.search_items_tab.search_results
                     )
                     .placeholder("Output will appear here...")
-                    .on_action(|action| Message::Search(SearchMessage::ItemEditorAction(action)))
+                    .on_action(|action| Message::Search(
+                        SearchMessage::ItemEditorAction(action)
+                    ))
                 ]
                 .spacing(20)
                 .align_x(Horizontal::Center);
@@ -1761,10 +1786,10 @@ impl Tabs {
                     scrollable(
                         container(content)
                             .padding(20) // Add padding around the content
-                            .width(Length::Fill)
+                            .width(Length::Fill),
                     )
                     .width(Length::Fill)
-                    .height(Length::Fill)
+                    .height(Length::Fill),
                 )
                 .align_x(Horizontal::Center)
                 .align_y(Vertical::Top)
