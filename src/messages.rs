@@ -107,6 +107,20 @@ pub enum Message {
     TabSelected(Tab),
     ThemeChanged(Theme),
     Search(SearchMessage),
+    Config(ConfigMessage),
+    Builder(BuilderMessage),
+}
+
+#[derive(Debug, Clone)]
+pub enum BuilderMessage {
+    Content(String),
+    Error(String),
+    StartBinary,
+    Editor(Action),
+}
+
+#[derive(Debug, Clone)]
+pub enum ConfigMessage {
     Gear(GearMessage),
     Player(PlayerMessage),
     ThresholdFirst(ThresholdFirstMessage),
@@ -114,5 +128,5 @@ pub enum Message {
     ThresholdThird(ThresholdThirdMessage),
     ThresholdFourth(ThresholdFourthMessage),
     ThresholdFifth(ThresholdFifthMessage),
-    Hppeng(HppengMessage),
+    Hppeng(HppengMessage)
 }
