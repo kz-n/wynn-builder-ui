@@ -1,27 +1,27 @@
-use std::io::Read;
-use std::path::Path;
-use std::process::Stdio;
-
+use builder::Builder;
 use config_file::ConfigFile;
-use futures::channel::mpsc;
 use futures::{SinkExt, Stream};
 use iced::alignment::{Horizontal, Vertical};
 use iced::stream::try_channel;
 use iced::widget::container;
 use iced::{task, Element, Length, Renderer, Task, Theme};
 use iced_widget::text_editor::Action;
-use iced_widget::{button, column, combo_box, pick_list, row, text, text_editor, Container};
+use iced_widget::{
+    button, column, combo_box, pick_list, row, scrollable, text, text_editor, Container,
+};
 use intro::Intro;
 use messages::*;
 use search_items::SearchItems;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use std::path::Path;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::select;
 
 mod build_config;
 mod config_file;
 mod intro;
 mod messages;
+mod builder;
 mod search_items;
 mod theme_serde;
 
@@ -43,195 +43,6 @@ struct Tabs {
     search_items_tab: SearchItems,
     config_file_tab: ConfigFile,
     builder_tab: Builder,
-}
-
-#[derive(Default)]
-struct Builder {
-    state: State,
-    builder_editor: text_editor::Content,
-}
-
-impl Builder {
-    fn update(&mut self, message: BuilderMessage) -> Task<Message> {
-        match message {
-            BuilderMessage::Communication(line) => {
-                self.state.text = if let Ok(content) = line {
-                    content
-                } else {
-                    format!("{}", line.err().unwrap())
-                };
-
-                self.builder_editor = text_editor::Content::with_text(&self.state.text.clone());
-
-                Task::none()
-            }
-            BuilderMessage::StartBinary => {
-                let (state, task) = State::new();
-                self.state = state;
-
-                task
-            }
-            BuilderMessage::Editor(action) => {
-                match action {
-                    Action::Edit(_) => (),
-                    Action::Move(motion) => {
-                        self.builder_editor.perform(Action::Move(motion));
-                    },
-                    Action::Select(motion) => {
-                        self.builder_editor.perform(Action::Select(motion));
-                    }
-                    Action::SelectWord => {
-                        self.builder_editor.perform(Action::SelectWord);
-                    }
-                    Action::SelectLine => {
-                        self.builder_editor.perform(Action::SelectLine);
-                    }
-                    Action::SelectAll => {
-                        self.builder_editor.perform(Action::SelectAll);
-                    }
-                    Action::Click(point) => {
-                        self.builder_editor.perform(Action::Click(point));
-                    }
-                    Action::Drag(point) => {
-                        self.builder_editor.perform(Action::Drag(point));
-                    }
-                    Action::Scroll { lines } => {
-                        self.builder_editor.perform(Action::Scroll { lines });
-                    }
-                };
-                Task::none()
-            }
-        }
-    }
-
-    fn view(&self) -> Container<Message> {
-        let column = column![
-            text("Builder").size(30),
-            text("This tab is where the builder binary is run and monitored.").size(20),
-            if self.state.is_running {
-                Element::new(text("The builder is currently running.").size(20))
-            } else {
-                button("Start Builder")
-                    .on_press(Message::Builder(BuilderMessage::StartBinary))
-                    .into()
-            },
-            text_editor(&self.builder_editor)
-                .on_action(|action| Message::Builder(BuilderMessage::Editor(action)))
-        ];
-
-        container(column)
-            .align_x(Horizontal::Center)
-            .align_y(Vertical::Top)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-    }
-}
-
-struct State {
-    is_running: bool,
-    text: String,
-    _process: task::Handle,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            is_running: false,
-            text: String::new(),
-            _process: {
-                let (_, handle) = Task::<Result<String, String>>::none().abortable();
-                handle
-            },
-        }
-    }
-}
-
-impl State {
-    pub fn new() -> (Self, Task<Message>) {
-        let (task, handle) = Task::run(start_binary(), |result| {
-            Message::Builder(BuilderMessage::Communication(result))
-        }).abortable();
-
-        let instance = Self {
-            is_running: true,
-            _process: handle.abort_on_drop(),
-            ..Default::default()
-        };
-
-        (instance, task)
-    }
-}
-
-pub fn start_binary() -> impl Stream<Item = Result<String, String>> {
-    let binary_name = if cfg!(target_os = "windows") {
-        "builder.exe"
-    } else {
-        "builder"
-    };
-
-    try_channel(1, move |mut output| async move {
-        let mut _process_result = tokio::process::Command::new(binary_name)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn();
-
-        let mut _process = match _process_result {
-            Ok(process) => process,
-            Err(e) => return Err(format!("Failed to start binary: {}", e)),
-        };
-
-        let stdout = match _process.stdout.take() {
-            Some(out) => out,
-            None => return Err("Failed to get stdout handle".to_string()),
-        };
-        let stderr = match _process.stderr.take() {
-            Some(err) => err,
-            None => return Err("Failed to get stderr handle".to_string()),
-        };
-        
-        let mut output_buffer = BufReader::new(stdout).lines();
-        let mut error_buffer = BufReader::new(stderr).lines();
-
-        loop {
-            let output_future = output_buffer.next_line();
-            let error_future = error_buffer.next_line();
-
-            select! {
-                output_result = output_future => {
-                    let Ok(result) = output_result else {
-                        return Err("Failed to read stdout".to_string());
-                    };
-
-                    let Some(line) = result else {
-                        return Err("Failed to read stdout".to_string());
-                    };
-
-                    let _ = output.send(line.clone()).await;
-
-                    if line.contains("done") {
-                        break Ok(());
-                    }
-                },
-
-                error_result = error_future => {
-                    let Ok(result) = error_result else {
-                        return Err("Failed to read stderr".to_string());
-                    };
-
-                    let Some(line) = result else {
-                        return Err("Failed to read stderr".to_string());
-                    };
-
-                    let _ = output.send(line.clone()).await;
-
-                    break Err(line);
-                }
-            }
-        }
-    })
 }
 
 #[derive(Default)]

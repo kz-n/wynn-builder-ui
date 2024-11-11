@@ -1,6 +1,6 @@
 use iced::Theme;
 use iced_widget::text_editor::Action;
-use crate::Tab;
+use crate::{builder::BuilderProgress, Tab};
 
 #[derive(Debug, Clone)]
 pub enum SearchMessage {
@@ -113,9 +113,9 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum BuilderMessage {
-    Communication(Result<String, String>),
+    Communication(Result<BuilderProgress, String>),
     StartBinary,
-    Editor(Action),
+    StopBinary,
 }
 
 #[derive(Debug, Clone)]

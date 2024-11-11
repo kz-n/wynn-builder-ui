@@ -1705,6 +1705,7 @@ dependencies = [
  "iced_core",
  "log",
  "rustc-hash 2.0.0",
+ "tokio",
  "wasm-bindgen-futures",
  "wasm-timer",
 ]
@@ -2871,6 +2872,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afbdc74edc00b6f6a218ca6a5364d6226a259d4b8ea1af4a0ea063f27e179f4d"
 
 [[package]]
+name = "pty-process"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8749b545e244c90bf74a5767764cc2194f1888bb42f84015486a64c82bea5cc0"
+dependencies = [
+ "libc",
+ "rustix",
+ "tokio",
+]
+
+[[package]]
 name = "quick-xml"
 version = "0.36.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3111,6 +3123,7 @@ checksum = "aa260229e6538e52293eeb577aabd09945a09d6d9cc0fc550ed7529056c2e32a"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
+ "itoa",
  "libc",
  "linux-raw-sys 0.4.14",
  "windows-sys 0.52.0",
@@ -4681,6 +4694,7 @@ dependencies = [
  "iced",
  "iced_aw",
  "iced_widget",
+ "pty-process",
  "reqwest",
  "serde",
  "serde_json",
