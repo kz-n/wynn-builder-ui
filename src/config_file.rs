@@ -8,7 +8,7 @@ use iced_widget::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    build_config::Config, ConfigMessage, GearMessage, HppengMessage, Message, PlayerMessage, ThresholdFifthMessage, ThresholdFirstMessage, ThresholdFourthMessage, ThresholdSecondMessage, ThresholdThirdMessage
+    build_config::{Config, ThresholdFifth, ThresholdFirst, ThresholdFourth, ThresholdSecond, ThresholdThird}, ConfigMessage, GearMessage, HppengMessage, Message, PlayerMessage, ThresholdFifthMessage, ThresholdFirstMessage, ThresholdFourthMessage, ThresholdSecondMessage, ThresholdThirdMessage
 };
 
 #[derive(Default)]
@@ -680,7 +680,7 @@ impl ConfigFile {
                     text("Min HP:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min HP...",
-                        &self.config.threshold_first.as_ref().unwrap().min_hp
+                        &self.config.threshold_first.as_ref().unwrap_or(&ThresholdFirst::default()).min_hp
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -701,7 +701,7 @@ impl ConfigFile {
                     text("Min HPR Raw:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min HPR raw...",
-                        &self.config.threshold_second.as_ref().unwrap().min_hpr_raw
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_hpr_raw
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -713,7 +713,7 @@ impl ConfigFile {
                     text("Min HPR Percentage:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min HPR percentage...",
-                        &self.config.threshold_second.as_ref().unwrap().min_hpr_pct
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_hpr_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -726,7 +726,7 @@ impl ConfigFile {
                     text("Min MR:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min MR...",
-                        &self.config.threshold_second.as_ref().unwrap().min_mr
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_mr
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -739,7 +739,7 @@ impl ConfigFile {
                     text("Min LS:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min LS...",
-                        &self.config.threshold_second.as_ref().unwrap().min_ls
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_ls
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -752,7 +752,7 @@ impl ConfigFile {
                     text("Min MS:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min MS...",
-                        &self.config.threshold_second.as_ref().unwrap().min_ms
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_ms
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -765,7 +765,7 @@ impl ConfigFile {
                     text("Min SPD:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min SPD...",
-                        &self.config.threshold_second.as_ref().unwrap().min_spd
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_spd
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -778,7 +778,7 @@ impl ConfigFile {
                     text("Min SD Raw:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min SD raw...",
-                        &self.config.threshold_second.as_ref().unwrap().min_sd_raw
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_sd_raw
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -791,7 +791,7 @@ impl ConfigFile {
                     text("Min SD Percentage:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min SD percentage...",
-                        &self.config.threshold_second.as_ref().unwrap().min_sd_pct
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_sd_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -804,7 +804,7 @@ impl ConfigFile {
                     text("Min HPR:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min HPR...",
-                        &self.config.threshold_second.as_ref().unwrap().min_hpr
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_hpr
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -817,7 +817,7 @@ impl ConfigFile {
                     text("Min EXP Bonus:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min EXP bonus...",
-                        &self.config.threshold_second.as_ref().unwrap().min_exp_bonus
+                        &self.config.threshold_second.as_ref().unwrap_or(&ThresholdSecond::default()).min_exp_bonus
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -839,7 +839,7 @@ impl ConfigFile {
                     text("Min Earth Defense:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min earth defense...",
-                        &self.config.threshold_third.as_ref().unwrap().min_earth_defense
+                        &self.config.threshold_third.as_ref().unwrap_or(&ThresholdThird::default()).min_earth_defense
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -851,7 +851,7 @@ impl ConfigFile {
                     text("Min Thunder Defense:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min thunder defense...",
-                        &self.config.threshold_third.as_ref().unwrap().min_thunder_defense
+                        &self.config.threshold_third.as_ref().unwrap_or(&ThresholdThird::default()).min_thunder_defense
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -863,7 +863,7 @@ impl ConfigFile {
                     text("Min Water Defense:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min water defense...",
-                        &self.config.threshold_third.as_ref().unwrap().min_water_defense
+                        &self.config.threshold_third.as_ref().unwrap_or(&ThresholdThird::default()).min_water_defense
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -875,7 +875,7 @@ impl ConfigFile {
                     text("Min Fire Defense:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min fire defense...",
-                        &self.config.threshold_third.as_ref().unwrap().min_fire_defense
+                        &self.config.threshold_third.as_ref().unwrap_or(&ThresholdThird::default()).min_fire_defense
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -887,7 +887,7 @@ impl ConfigFile {
                     text("Min Air Defense:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min air defense...",
-                        &self.config.threshold_third.as_ref().unwrap().min_air_defense
+                        &self.config.threshold_third.as_ref().unwrap_or(&ThresholdThird::default()).min_air_defense
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -908,7 +908,7 @@ impl ConfigFile {
                     text("Min Neutral Damage %:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min neutral damage %...",
-                        &self.config.threshold_fourth.as_ref().unwrap().min_neutral_dam_pct
+                        &self.config.threshold_fourth.as_ref().unwrap_or(&ThresholdFourth::default()).min_neutral_dam_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -920,7 +920,7 @@ impl ConfigFile {
                     text("Min Earth Damage %:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min earth damage %...",
-                        &self.config.threshold_fourth.as_ref().unwrap().min_earth_dam_pct
+                        &self.config.threshold_fourth.as_ref().unwrap_or(&ThresholdFourth::default()).min_earth_dam_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -932,7 +932,7 @@ impl ConfigFile {
                     text("Min Thunder Damage %:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min thunder damage %...",
-                        &self.config.threshold_fourth.as_ref().unwrap().min_thunder_dam_pct
+                        &self.config.threshold_fourth.as_ref().unwrap_or(&ThresholdFourth::default()).min_thunder_dam_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -944,7 +944,7 @@ impl ConfigFile {
                     text("Min Water Damage %:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min water damage %...",
-                        &self.config.threshold_fourth.as_ref().unwrap().min_water_dam_pct
+                        &self.config.threshold_fourth.as_ref().unwrap_or(&ThresholdFourth::default()).min_water_dam_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -956,7 +956,7 @@ impl ConfigFile {
                     text("Min Fire Damage %:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min fire damage %...",
-                        &self.config.threshold_fourth.as_ref().unwrap().min_fire_dam_pct
+                        &self.config.threshold_fourth.as_ref().unwrap_or(&ThresholdFourth::default()).min_fire_dam_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -968,7 +968,7 @@ impl ConfigFile {
                     text("Min Air Damage %:").width(Length::Fixed(150.0)),
                     text_input(
                         "Enter min air damage %...",
-                        &self.config.threshold_fourth.as_ref().unwrap().min_air_dam_pct
+                        &self.config.threshold_fourth.as_ref().unwrap_or(&ThresholdFourth::default()).min_air_dam_pct
                             .map(|v| v.to_string())
                             .unwrap_or_default()
                     )
@@ -986,7 +986,7 @@ impl ConfigFile {
                             text("Min Earth Point:").width(Length::Fixed(150.0)),
                             text_input(
                                 "Enter min earth point...",
-                                &self.config.threshold_fifth.as_ref().unwrap().min_earth_point
+                                &self.config.threshold_fifth.as_ref().unwrap_or(&ThresholdFifth::default()).min_earth_point
                                     .map(|v| v.to_string())
                                     .unwrap_or_default()
                             )
@@ -998,7 +998,7 @@ impl ConfigFile {
                             text("Min Thunder Point:").width(Length::Fixed(150.0)),
                             text_input(
                                 "Enter min thunder point...",
-                                &self.config.threshold_fifth.as_ref().unwrap().min_thunder_point
+                                &self.config.threshold_fifth.as_ref().unwrap_or(&ThresholdFifth::default()).min_thunder_point
                                     .map(|v| v.to_string())
                                     .unwrap_or_default()
                             )
@@ -1010,7 +1010,7 @@ impl ConfigFile {
                             text("Min Water Point:").width(Length::Fixed(150.0)),
                             text_input(
                                 "Enter min water point...",
-                                &self.config.threshold_fifth.as_ref().unwrap().min_water_point
+                                &self.config.threshold_fifth.as_ref().unwrap_or(&ThresholdFifth::default()).min_water_point
                                     .map(|v| v.to_string())
                                     .unwrap_or_default()
                             )
@@ -1022,7 +1022,7 @@ impl ConfigFile {
                             text("Min Fire Point:").width(Length::Fixed(150.0)),
                             text_input(
                                 "Enter min fire point...",
-                                &self.config.threshold_fifth.as_ref().unwrap().min_fire_point
+                                &self.config.threshold_fifth.as_ref().unwrap_or(&ThresholdFifth::default()).min_fire_point
                                     .map(|v| v.to_string())
                                     .unwrap_or_default()
                             )
@@ -1034,7 +1034,7 @@ impl ConfigFile {
                             text("Min Air Point:").width(Length::Fixed(150.0)),
                             text_input(
                                 "Enter min air point...",
-                                &self.config.threshold_fifth.as_ref().unwrap().min_air_point
+                                &self.config.threshold_fifth.as_ref().unwrap_or(&ThresholdFifth::default()).min_air_point
                                     .map(|v| v.to_string())
                                     .unwrap_or_default()
                             )
@@ -1046,7 +1046,7 @@ impl ConfigFile {
                             text("Min EHP:").width(Length::Fixed(150.0)),
                             text_input(
                                 "Enter min EHP...",
-                                &self.config.threshold_fifth.as_ref().unwrap().min_ehp
+                                &self.config.threshold_fifth.as_ref().unwrap_or(&ThresholdFifth::default()).min_ehp
                                     .map(|v| v.to_string())
                                     .unwrap_or_default()
                             )

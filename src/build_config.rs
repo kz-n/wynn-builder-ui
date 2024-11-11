@@ -42,18 +42,18 @@ pub struct Hppeng {
     pub log_db_errors: bool,
     pub db_retry_count: u8,
 }
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct Api {
     pub url: String,
     pub version: String,
     pub module: String,
     pub query: String,
 }
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct ThresholdFirst {
     pub min_hp: Option<i32>,
 }
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct ThresholdSecond {
     pub min_hpr_raw: Option<i16>,
     pub min_hpr_pct: Option<i16>,
@@ -67,7 +67,7 @@ pub struct ThresholdSecond {
 
     pub min_hpr: Option<i32>,
 }
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct ThresholdThird {
     pub min_earth_defense: Option<i16>,
     pub min_thunder_defense: Option<i16>,
@@ -75,7 +75,7 @@ pub struct ThresholdThird {
     pub min_fire_defense: Option<i16>,
     pub min_air_defense: Option<i16>,
 }
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct ThresholdFourth {
     pub min_neutral_dam_pct: Option<i16>,
     pub min_earth_dam_pct: Option<i16>,
@@ -84,7 +84,7 @@ pub struct ThresholdFourth {
     pub min_fire_dam_pct: Option<i16>,
     pub min_air_dam_pct: Option<i16>,
 }
-#[derive(Debug, Deserialize, Clone, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize, Default)]
 pub struct ThresholdFifth {
     pub min_earth_point: Option<i16>,
     pub min_thunder_point: Option<i16>,
