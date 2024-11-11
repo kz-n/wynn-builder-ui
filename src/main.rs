@@ -1,21 +1,16 @@
 use builder::Builder;
 use config_file::{ConfigFile, Gear, GearList, GearSelections, GearType};
-use futures::{SinkExt, Stream};
 use iced::alignment::{Horizontal, Vertical};
-use iced::stream::try_channel;
 use iced::widget::container;
-use iced::{task, Element, Length, Renderer, Task, Theme};
-use iced_widget::text_editor::Action;
+use iced::{Element, Length, Renderer, Task, Theme};
 use iced_widget::{
-    button, column, combo_box, pick_list, row, scrollable, text, text_editor, Container,
+    button, column, combo_box, pick_list, row, text, Container,
 };
 use intro::Intro;
 use messages::*;
 use search_items::SearchItems;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tokio::select;
 
 mod build_config;
 mod builder;
