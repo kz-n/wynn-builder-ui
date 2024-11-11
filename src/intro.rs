@@ -47,9 +47,10 @@ impl Intro {
                 text("1. Make sure you've extracted both the release Wynn Builder UI and the WynnBuilderTools release into the same folder.").size(16),
                 text("2. Go to the Search tab, and run any command with --sort or -s to generate the items.json file.").size(16),
                 text("3. Once the items.json file is generated, go to the Config File tab, and check that you get no errors.\nIf you do, check that items.json is present in the config folder, and close and re-open the application.").size(16),
-                text("4. The builder tab is unfinished, and will be updated in the future.").size(16),
-                text("For now, you can use the builder by running it in a terminal with no arguments.").size(16),
-                text("I'm hoping that for now the Config tab will suffice in making the tool usable.").size(16),
+                text("4. Once you've confirmed that the config tab loads without errors, you're set for configuration.").size(16),
+                text("5. You can now use the Builder tab to build the database of possible gear combinations with the given config.").size(16),
+                text("In case of any issues, please contact me on Discord: @enkarterisi").size(16),
+                text("You can also open an issue on the Github repository if you prefer.").size(16),
             ]
             .spacing(20)
             .align_x(Horizontal::Center);

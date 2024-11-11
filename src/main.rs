@@ -1,5 +1,5 @@
 use builder::Builder;
-use config_file::ConfigFile;
+use config_file::{ConfigFile, Gear, GearList, GearSelections, GearType};
 use futures::{SinkExt, Stream};
 use iced::alignment::{Horizontal, Vertical};
 use iced::stream::try_channel;
@@ -18,10 +18,10 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::select;
 
 mod build_config;
+mod builder;
 mod config_file;
 mod intro;
 mod messages;
-mod builder;
 mod search_items;
 mod theme_serde;
 
@@ -45,132 +45,6 @@ struct Tabs {
     builder_tab: Builder,
 }
 
-#[derive(Default)]
-struct GearSelections {
-    helmets: combo_box::State<String>,
-    helmet_selections: Vec<Option<String>>,
-    chestplates: combo_box::State<String>,
-    chestplate_selections: Vec<Option<String>>,
-    leggings: combo_box::State<String>,
-    leggings_selections: Vec<Option<String>>,
-    boots: combo_box::State<String>,
-    boots_selections: Vec<Option<String>>,
-    rings: combo_box::State<String>,
-    rings_selections: Vec<Option<String>>,
-    bracelets: combo_box::State<String>,
-    bracelets_selections: Vec<Option<String>>,
-    necklaces: combo_box::State<String>,
-    necklaces_selections: Vec<Option<String>>,
-    weapons: combo_box::State<String>,
-    selected_weapon: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GearList {
-    items: Vec<Gear>,
-}
-
-impl GearList {
-    fn from_json(path: &str) -> Result<Self, String> {
-        let items_json_string = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read items file: {}", e))?;
-
-        match serde_json::from_str::<GearList>(&items_json_string) {
-            Ok(gear_list) => Ok(gear_list),
-            Err(e) => {
-                // Print more detailed error information
-                eprintln!("Deserialization error: {}", e);
-                Err(format!("Failed to parse items JSON: {}", e))
-            }
-        }
-    }
-
-    fn get_gear_by_type(&self, gear_type: GearType) -> Vec<String> {
-        self.items
-            .iter()
-            .filter(|gear| gear.gear_type == gear_type)
-            .map(|gear| gear.name.clone())
-            .collect()
-    }
-
-    fn helmets(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Helmet)
-    }
-
-    fn chestplates(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Chestplate)
-    }
-
-    fn leggings(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Leggings)
-    }
-
-    fn boots(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Boots)
-    }
-
-    fn rings(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Ring)
-    }
-
-    fn bracelets(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Bracelet)
-    }
-
-    fn necklaces(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Necklace)
-    }
-
-    fn weapons(&self) -> Vec<String> {
-        self.get_gear_by_type(GearType::Spear)
-            .into_iter()
-            .chain(self.get_gear_by_type(GearType::Wand))
-            .chain(self.get_gear_by_type(GearType::Bow))
-            .chain(self.get_gear_by_type(GearType::Dagger))
-            .chain(self.get_gear_by_type(GearType::Relik))
-            .collect()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct Gear {
-    id: i64,
-    name: String,
-    tier: String,
-    #[serde(rename = "type")]
-    gear_type: GearType,
-}
-
-impl Gear {
-    fn default_for_type(gear_type: GearType, name: &str, id: i64) -> Self {
-        Self {
-            id,
-            name: name.to_string(),       // Convert &str to owned String
-            tier: String::from("Common"), // Default tier
-            gear_type,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-#[serde(rename_all = "lowercase")]
-enum GearType {
-    Helmet,
-    Chestplate,
-    Leggings,
-    Boots,
-    Ring,
-    Bracelet,
-    Necklace,
-    Bow,
-    Spear,
-    Wand,
-    Dagger,
-    Relik,
-    #[default]
-    None,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ThemeConfig {
     #[serde(with = "theme_serde")]
@@ -183,6 +57,15 @@ impl Tabs {
         let settings_dir = Path::new("settings");
         let _ = std::fs::create_dir_all(settings_dir);
         let theme_path = settings_dir.join("theme.toml");
+
+        // === Theme Setup ===
+        let theme = match std::fs::read_to_string(&theme_path) {
+            Ok(contents) => match toml::from_str::<ThemeConfig>(&contents) {
+                Ok(config) => config.theme,
+                Err(_) => Theme::Dark,
+            },
+            Err(_) => Theme::Dark,
+        };
 
         // === Load Config File ===
         let config = build_config::load_config("config/config.toml").unwrap_or_default();
@@ -216,15 +99,6 @@ impl Tabs {
             .map(|s| s.to_string())
             .collect();
         let weapon = config.items.weapon.to_string();
-
-        // === Theme Setup ===
-        let theme = match std::fs::read_to_string(&theme_path) {
-            Ok(contents) => match toml::from_str::<ThemeConfig>(&contents) {
-                Ok(config) => config.theme,
-                Err(_) => Theme::Dark,
-            },
-            Err(_) => Theme::Dark,
-        };
 
         // === Load Gear List ===
         let (gear_list, error_message) = match GearList::from_json("config/items.json") {
