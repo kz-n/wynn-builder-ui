@@ -8,13 +8,15 @@ use futures::{SinkExt, Stream};
 use iced::alignment::{Horizontal, Vertical};
 use iced::stream::try_channel;
 use iced::widget::container;
-use iced::{Element, Length, Renderer, Task, Theme};
+use iced::{task, Element, Length, Renderer, Task, Theme};
 use iced_widget::text_editor::Action;
 use iced_widget::{button, column, combo_box, pick_list, row, text, text_editor, Container};
 use intro::Intro;
 use messages::*;
 use search_items::SearchItems;
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::select;
 
 mod build_config;
 mod config_file;
@@ -52,22 +54,22 @@ struct Builder {
 impl Builder {
     fn update(&mut self, message: BuilderMessage) -> Task<Message> {
         match message {
-            BuilderMessage::Content(content) => {
-                self.builder_editor = text_editor::Content::with_text(&content);
-                Task::none()
-            }
-            BuilderMessage::Error(error) => {
-                self.builder_editor = text_editor::Content::with_text(&error);
+            BuilderMessage::Communication(line) => {
+                self.state.text = if let Ok(content) = line {
+                    content
+                } else {
+                    format!("{}", line.err().unwrap())
+                };
+
+                self.builder_editor = text_editor::Content::with_text(&self.state.text.clone());
+
                 Task::none()
             }
             BuilderMessage::StartBinary => {
-                let state = State::new();
+                let (state, task) = State::new();
                 self.state = state;
 
-                Task::run(self.state.start_binary(), |result| match result {
-                    Ok(content) => Message::Builder(BuilderMessage::Content(content)),
-                    Err(error) => Message::Builder(BuilderMessage::Error(error)),
-                })
+                task
             }
             BuilderMessage::Editor(action) => {
                 match action {
@@ -128,75 +130,108 @@ impl Builder {
 
 struct State {
     is_running: bool,
+    text: String,
+    _process: task::Handle,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self { is_running: false }
+        Self {
+            is_running: false,
+            text: String::new(),
+            _process: {
+                let (_, handle) = Task::<Result<String, String>>::none().abortable();
+                handle
+            },
+        }
     }
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub fn new() -> (Self, Task<Message>) {
+        let (task, handle) = Task::run(start_binary(), |result| {
+            Message::Builder(BuilderMessage::Communication(result))
+        }).abortable();
+
         let instance = Self {
+            is_running: true,
+            _process: handle.abort_on_drop(),
             ..Default::default()
         };
 
-        instance
+        (instance, task)
     }
+}
 
-    pub fn start_binary(&mut self) -> impl Stream<Item = Result<String, String>> {
-        async fn match_send(
-            output: &mut mpsc::Sender<String>,
-            result: String,
-        ) -> Result<(), String> {
-            match output.send(result).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(format!("Failed to send result: {}", e)),
-            }
-        }
+pub fn start_binary() -> impl Stream<Item = Result<String, String>> {
+    let binary_name = if cfg!(target_os = "windows") {
+        "builder.exe"
+    } else {
+        "builder"
+    };
 
-        self.is_running = true;
+    try_channel(1, move |mut output| async move {
+        let mut _process_result = tokio::process::Command::new(binary_name)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn();
 
-        let binary_name = if cfg!(target_os = "windows") {
-            "builder.exe"
-        } else {
-            "builder"
+        let mut _process = match _process_result {
+            Ok(process) => process,
+            Err(e) => return Err(format!("Failed to start binary: {}", e)),
         };
 
-        try_channel(1, move |mut output| async move {
-            match_send(&mut output, "starting binary".to_string()).await?;
+        let stdout = match _process.stdout.take() {
+            Some(out) => out,
+            None => return Err("Failed to get stdout handle".to_string()),
+        };
+        let stderr = match _process.stderr.take() {
+            Some(err) => err,
+            None => return Err("Failed to get stderr handle".to_string()),
+        };
+        
+        let mut output_buffer = BufReader::new(stdout).lines();
+        let mut error_buffer = BufReader::new(stderr).lines();
 
-            let process_result = std::process::Command::new(binary_name)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn();
+        loop {
+            let output_future = output_buffer.next_line();
+            let error_future = error_buffer.next_line();
 
-            let mut process = match process_result {
-                Ok(process) => process,
-                Err(e) => return Err(format!("Failed to start binary: {}", e)),
-            };
+            select! {
+                output_result = output_future => {
+                    let Ok(result) = output_result else {
+                        return Err("Failed to read stdout".to_string());
+                    };
 
-            let mut process_reader = match process.stdout.take() {
-                Some(reader) => reader,
-                None => return Err("Failed to capture stdout".to_string()),
-            };
+                    let Some(line) = result else {
+                        return Err("Failed to read stdout".to_string());
+                    };
 
-            loop {
-                let mut result = String::new();
-                let _reader_future = process_reader.read_to_string(&mut result);
+                    let _ = output.send(line.clone()).await;
 
-                if result.contains("done") {
-                    match_send(&mut output, result).await?;
-                    break;
-                } else {
-                    match_send(&mut output, result).await?;
+                    if line.contains("done") {
+                        break Ok(());
+                    }
+                },
+
+                error_result = error_future => {
+                    let Ok(result) = error_result else {
+                        return Err("Failed to read stderr".to_string());
+                    };
+
+                    let Some(line) = result else {
+                        return Err("Failed to read stderr".to_string());
+                    };
+
+                    let _ = output.send(line.clone()).await;
+
+                    break Err(line);
                 }
             }
-
-            Ok(())
-        })
-    }
+        }
+    })
 }
 
 #[derive(Default)]

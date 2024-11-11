@@ -113,8 +113,7 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum BuilderMessage {
-    Content(String),
-    Error(String),
+    Communication(Result<String, String>),
     StartBinary,
     Editor(Action),
 }
