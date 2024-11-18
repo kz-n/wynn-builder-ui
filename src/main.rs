@@ -4,9 +4,7 @@ use db_reader::DBReader;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::container;
 use iced::{Element, Length, Renderer, Task, Theme};
-use iced_widget::{
-    button, column, combo_box, pick_list, row, text, Container,
-};
+use iced_widget::{button, column, combo_box, pick_list, row, text, Container};
 use intro::Intro;
 use messages::*;
 use search_items::SearchItems;
@@ -16,11 +14,11 @@ use std::path::Path;
 mod build_config;
 mod builder;
 mod config;
+mod db_reader;
 mod intro;
 mod messages;
 mod search_items;
 mod theme_serde;
-mod db_reader;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Tab {
@@ -41,7 +39,7 @@ struct Tabs {
     search_items_tab: SearchItems,
     config_file_tab: ConfigFile,
     builder_tab: Builder,
-    // db_reader_tab: DBReader,
+    db_reader_tab: DBReader,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,7 +128,7 @@ impl Tabs {
         (
             Self {
                 active_tab: Tab::Intro,
-                theme,
+                theme: theme.clone(),
                 // Config File Tab initialization
                 config_file_tab: ConfigFile {
                     // Gear selection states
@@ -164,6 +162,7 @@ impl Tabs {
                 // Search Tab initialization
                 search_items_tab: SearchItems::default(),
                 builder_tab: Builder::default(),
+                db_reader_tab: DBReader::init(theme.clone()),
                 ..Default::default()
             },
             Task::none(),
@@ -192,8 +191,7 @@ impl Tabs {
             Message::Search(search_message) => self.search_items_tab.update(search_message),
             Message::Config(config_message) => self.config_file_tab.update(config_message),
             Message::Builder(builder_message) => self.builder_tab.update(builder_message),
-            Message::DBReader(dbreader_message) => todo!(),
-            // Message::DBReader(dbreader_message) => self.db_reader_tab.update(dbreader_message),
+            Message::DBReader(dbreader_message) => self.db_reader_tab.update(dbreader_message),
         }
     }
 
@@ -204,6 +202,7 @@ impl Tabs {
             button("Search").on_press(Message::TabSelected(Tab::Search)),
             button("Config File").on_press(Message::TabSelected(Tab::ConfigFile)),
             button("Builder").on_press(Message::TabSelected(Tab::Builder)),
+            button("DB Reader").on_press(Message::TabSelected(Tab::DBReader)),
             button("Theme").on_press(Message::TabSelected(Tab::Theme)),
         ]
         .spacing(4);
@@ -216,32 +215,9 @@ impl Tabs {
                 let selector = column![
                     text("Select Theme:"),
                     pick_list(
-                        vec![
-                            Theme::Light,
-                            Theme::Dark,
-                            Theme::Dracula,
-                            Theme::Nord,
-                            Theme::SolarizedLight,
-                            Theme::SolarizedDark,
-                            Theme::GruvboxLight,
-                            Theme::GruvboxDark,
-                            Theme::CatppuccinLatte,
-                            Theme::CatppuccinFrappe,
-                            Theme::CatppuccinMacchiato,
-                            Theme::CatppuccinMocha,
-                            Theme::TokyoNight,
-                            Theme::TokyoNightStorm,
-                            Theme::TokyoNightLight,
-                            Theme::KanagawaWave,
-                            Theme::KanagawaDragon,
-                            Theme::KanagawaLotus,
-                            Theme::Moonfly,
-                            Theme::Nightfly,
-                            Theme::Oxocarbon,
-                            Theme::Ferra,
-                        ],
+                        Themes::to_vec(),
                         Some(self.theme.clone()),
-                        Message::ThemeChanged
+                        Message::ThemeChanged,
                     )
                 ];
 
@@ -254,8 +230,7 @@ impl Tabs {
             }
             Tab::ConfigFile => self.config_file_tab.view(),
             Tab::Builder => self.builder_tab.view(),
-            Tab::DBReader => container(text("DB Reader")).into(),
-            // Tab::DBReader => self.db_reader_tab.view(),
+            Tab::DBReader => self.db_reader_tab.view(),
         };
 
         // Main layout
@@ -270,6 +245,66 @@ impl Tabs {
         .into()
     }
 }
+
+macro_rules! define_themes {
+    ($($variant:ident),*) => {
+        pub enum Themes {
+            $($variant),*
+        }
+
+        impl Themes {
+            pub fn to_vec() -> Vec<Theme> {
+                vec![
+                    $(Theme::$variant),*
+                ]
+            }
+
+            pub fn to_vec_str() -> Vec<String> {
+                Self::to_vec().iter().map(|theme| theme.to_string()).collect()
+            }
+
+            pub fn from_str(theme: &str) -> Option<Self> {
+                match theme {
+                    $(stringify!($variant) => Some(Themes::$variant),)*
+                    _ => None,
+                }
+            }
+        }
+
+        impl ToString for Themes {
+            fn to_string(&self) -> String {
+                match self {
+                    $(Themes::$variant => stringify!($variant).to_string()),*
+                }
+            }
+        }
+    }
+}
+
+define_themes!(
+    Light,
+    Dark,
+    Dracula,
+    Nord,
+    SolarizedLight,
+    SolarizedDark,
+    GruvboxLight,
+    GruvboxDark,
+    CatppuccinLatte,
+    CatppuccinFrappe,
+    CatppuccinMacchiato,
+    CatppuccinMocha,
+    TokyoNight,
+    TokyoNightStorm,
+    TokyoNightLight,
+    KanagawaWave,
+    KanagawaDragon,
+    KanagawaLotus,
+    Moonfly,
+    Nightfly,
+    Oxocarbon,
+    Ferra
+);
 
 fn main() -> iced::Result {
     iced::application("Wynnbuilder Tools UI", Tabs::update, Tabs::view)

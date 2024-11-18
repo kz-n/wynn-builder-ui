@@ -1,6 +1,9 @@
-use iced::Theme;
-use iced_widget::text_editor::Action;
+use std::fmt::{self, Display};
+
 use crate::{builder::BuilderProgress, Tab};
+use iced::Theme;
+use iced_table::table::Column;
+use iced_widget::{scrollable::AbsoluteOffset, text_editor::Action};
 
 #[derive(Debug, Clone)]
 pub enum SearchMessage {
@@ -114,7 +117,54 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum DBReaderMessage {
-    Sync,
+    Sync(AbsoluteOffset),
+    Resizing(usize, f32),
+    Resized,
+    ResizeColumnsEnabled(bool),
+    FooterEnabled(bool),
+    MinWidthEnabled(bool),
+    Notes(usize, String),
+    Theme(Theme),
+    Category(usize, Category),
+    Enabled(usize, bool),
+    Delete(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Category {
+    #[default]
+    A,
+    B,
+    C,
+    D,
+    E,
+}
+
+impl Category {
+    pub const ALL: &'static [Self] = &[Self::A, Self::B, Self::C, Self::D, Self::E];
+}
+
+impl Display for Category {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Category::A => "A",
+            Category::B => "B",
+            Category::C => "C",
+            Category::D => "D",
+            Category::E => "E",
+        }
+        .fmt(f)
+    }
+}
+
+#[derive(Default)]
+pub enum ColumnKind {
+    #[default]
+    Index,
+    Category,
+    Enabled,
+    Notes,
+    Delete,
 }
 
 #[derive(Debug, Clone)]
@@ -133,5 +183,5 @@ pub enum ConfigMessage {
     ThresholdThird(ThresholdThirdMessage),
     ThresholdFourth(ThresholdFourthMessage),
     ThresholdFifth(ThresholdFifthMessage),
-    Hppeng(HppengMessage)
+    Hppeng(HppengMessage),
 }

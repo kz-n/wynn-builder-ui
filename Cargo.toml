@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 iced = { version = "0.13.1", features = ["advanced", "tokio"] }
-iced_widget = "0.13.1"
+iced_widget = { version = "0.13.1", features = ["lazy"] }
 iced_aw = { version = "0.11.0" }
 toml = "0.8.10"
 serde = { version = "1.0.197", features = ["derive"] }
