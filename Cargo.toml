@@ -16,3 +16,5 @@ tokio = { version = "1.25.0", features = ["full"] }
 futures = "0.3.31"
 async-stream = "0.3.6"
 pty-process = { version = "0.4.0", features = ["async"] }
+iced_table = "0.13"
+sqlite = "0.36.1"

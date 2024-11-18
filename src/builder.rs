@@ -13,6 +13,7 @@ use tokio::{
     select,
 };
 
+use crate::config::style::WARNING;
 use crate::{BuilderMessage, Message};
 
 #[derive(Default)]
@@ -80,7 +81,7 @@ impl Builder {
         text("This tab is where the builder binary is run and monitored.").size(20),
         text("Beware: Running the builder binary with the output builds flag enabled will generate a lot of output and may lag or even crash the application.")
         .size(20)
-        .color(iced::color!(255, 0, 0)),
+        .color(WARNING),
         if self.state.is_running {
             Element::new(
                 button("Stop Builder")
@@ -153,109 +154,33 @@ pub fn start_binary() -> impl Stream<Item = Result<BuilderProgress, String>> {
     };
 
     try_channel(1, move |mut output| async move {
-        #[cfg(target_os = "linux")]
-        let mut pty = {
-            let test =
-                pty_process::Pty::new().map_err(|e| format!("Failed to create pty: {}", e))?;
+        let mut _process = tokio::process::Command::new(binary_name)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|e| format!("Failed to start binary: {}", e))?;
 
-            let _ = test.resize(pty_process::Size::new(24, 80));
-
-            test
-        };
-
-        let mut _process = {
-            #[cfg(target_os = "linux")]
-            {
-                pty_process::Command::new(binary_name)
-                    .spawn(&pty.pts().map_err(|e| format!("Failed to get pts: {}", e))?)
-                    .map_err(|e| format!("Failed to start binary: {}", e))?
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                tokio::process::Command::new(binary_name)
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .kill_on_drop(true)
-                    .spawn()
-                    .map_err(|e| format!("Failed to start binary: {}", e))?
-            }
-        };
-
-        let stdout = {
-            #[cfg(target_os = "linux")]
-            {
-                let (reader, _writer) = pty.split();
-                reader
-            }
-
-            #[cfg(target_os = "windows")]
-            {
-                _process.stdout.take().unwrap()
-            }
-        };
-
-        #[cfg(target_os = "windows")]
-        let stderr = _process.stderr.take().unwrap();
+        let stdout = _process.stdout.take().unwrap();
 
         let mut output_buffer = BufReader::new(stdout).lines();
-
-        #[cfg(target_os = "windows")]
-        let mut error_buffer = BufReader::new(stderr).lines();
 
         loop {
             let output_future = output_buffer.next_line();
 
-            #[cfg(target_os = "windows")]
-            let error_future = error_buffer.next_line();
-
-            #[cfg(target_os = "windows")]
             select! {
                 output_result = output_future => {
                     let Ok(result) = output_result else {
-                        return Err("Failed to read stdout".to_string());
+                        return Err(format!("Failed to read stdout"));
                     };
 
                     let Some(line) = result else {
-                        return Err("Failed to read stdout".to_string());
-                    };
-
-                    let _ = output.send(BuilderProgress::Running(line.clone())).await;
-
-                    if line.contains("done") {
-                        let _ = output.send(BuilderProgress::Done).await;
-                        break Ok(());
-                    }
-                },
-
-                error_result = error_future => {
-                    let Ok(result) = error_result else {
-                        return Err("Failed to read stderr".to_string());
-                    };
-
-                    let Some(line) = result else {
-                        return Err("Failed to read stderr".to_string());
-                    };
-
-                    let _ = output.send(BuilderProgress::Error(line.clone())).await;
-
-                    break Err(line);
-                }
-            }
-
-            #[cfg(target_os = "linux")]
-            select! {
-                output_result = output_future => {
-                    let Ok(result) = output_result else {
-                        return Err("Failed to read stdout".to_string());
-                    };
-
-                    let Some(line) = result else {
-                        return Err("Failed to read stdout".to_string());
+                        return Err(format!("Failed to read stdout: reached end of stream"));
                     };
 
                     if line.contains("done") {
+                        let _ = output.send(BuilderProgress::Running(line)).await;
                         let _ = output.send(BuilderProgress::Done).await;
                         break Ok(());
                     }

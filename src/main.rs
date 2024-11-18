@@ -1,5 +1,6 @@
 use builder::Builder;
-use config_file::{ConfigFile, Gear, GearList, GearSelections, GearType};
+use config::{ConfigFile, Gear, GearList, GearSelections, GearType};
+use db_reader::DBReader;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::container;
 use iced::{Element, Length, Renderer, Task, Theme};
@@ -14,11 +15,12 @@ use std::path::Path;
 
 mod build_config;
 mod builder;
-mod config_file;
+mod config;
 mod intro;
 mod messages;
 mod search_items;
 mod theme_serde;
+mod db_reader;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Tab {
@@ -28,6 +30,7 @@ pub enum Tab {
     ConfigFile,
     Builder,
     Theme,
+    DBReader,
 }
 
 #[derive(Default)]
@@ -38,6 +41,7 @@ struct Tabs {
     search_items_tab: SearchItems,
     config_file_tab: ConfigFile,
     builder_tab: Builder,
+    // db_reader_tab: DBReader,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,6 +192,8 @@ impl Tabs {
             Message::Search(search_message) => self.search_items_tab.update(search_message),
             Message::Config(config_message) => self.config_file_tab.update(config_message),
             Message::Builder(builder_message) => self.builder_tab.update(builder_message),
+            Message::DBReader(dbreader_message) => todo!(),
+            // Message::DBReader(dbreader_message) => self.db_reader_tab.update(dbreader_message),
         }
     }
 
@@ -248,6 +254,8 @@ impl Tabs {
             }
             Tab::ConfigFile => self.config_file_tab.view(),
             Tab::Builder => self.builder_tab.view(),
+            Tab::DBReader => container(text("DB Reader")).into(),
+            // Tab::DBReader => self.db_reader_tab.view(),
         };
 
         // Main layout

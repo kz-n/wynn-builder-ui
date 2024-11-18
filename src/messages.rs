@@ -109,6 +109,12 @@ pub enum Message {
     Search(SearchMessage),
     Config(ConfigMessage),
     Builder(BuilderMessage),
+    DBReader(DBReaderMessage),
+}
+
+#[derive(Debug, Clone)]
+pub enum DBReaderMessage {
+    Sync,
 }
 
 #[derive(Debug, Clone)]
