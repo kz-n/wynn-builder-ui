@@ -19,17 +19,12 @@ A GUI application built with Rust and Iced to interface with Wynnbuilder tools f
 
 - Rust (latest stable version)
 - `search_item` binary in the root directory
-- `builder` binary in the root directory (upcoming feature)
+- `builder` binary in the root directory
 
 ## Installation
 
-1. Clone the repository
-2. Build the project:
-```bash
-cargo build --release
-```
-3. Place the required binaries (`search_item`/`search_item.exe`) in the same directory as the executable
-4. Create a `config` directory for configuration files
+1. Get the latest pre-built binary from the releases
+2. Place the required binaries (`search_item`/`search_item.exe` and `builder`/`builder.exe`) in the same directory as the executable
 
 ## Usage
 
@@ -42,6 +37,10 @@ Navigate to the Search tab to look up Wynncraft items. Examples:
 - The Config File tab allows you to edit the configuration in real-time
 - Changes are automatically saved
 - Configuration files are stored in the `config` directory
+
+### Builder
+- This tab allows you to run the builder and monitor its output in real time
+- Press the `Start Builder` button to run it
 
 ### Themes
 - Access the Theme tab to change the application's appearance
