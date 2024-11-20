@@ -63,7 +63,7 @@ impl SearchItems {
                 let binary_name = if cfg!(windows) {
                     "search_item.exe"
                 } else {
-                    "search_item"
+                    "./search_item"
                 };
 
                 let args: Vec<&str> = self
